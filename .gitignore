@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# backend
+!.env.example
+backend/.env
+backend/node_modules
+backend/uploads/*
+!backend/uploads/.gitkeep
