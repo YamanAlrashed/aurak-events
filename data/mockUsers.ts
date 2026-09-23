@@ -1,0 +1,60 @@
+import { MockUser } from "@/types/auth";
+
+export const mockUsers: MockUser[] = [
+  {
+    id: "campus-super-admin",
+    name: "Layla Al Mansoori",
+    initials: "LA",
+    role: "super-admin",
+    module: "campus-events",
+    label: "Campus Events Super Admin",
+  },
+  {
+    id: "campus-admin",
+    name: "Omar Al Hashimi",
+    initials: "OA",
+    role: "admin",
+    module: "campus-events",
+    label: "Campus Events Admin",
+  },
+  {
+    id: "campus-staff",
+    name: "Rashid Al Nuaimi",
+    initials: "RA",
+    role: "staff",
+    module: "campus-events",
+    label: "Campus Events Staff",
+  },
+  {
+    id: "campus-user",
+    name: "Hind Abdullah",
+    initials: "HA",
+    role: "user",
+    module: "campus-events",
+    label: "Campus Events User",
+  },
+  {
+    id: "marketing-super-admin",
+    name: "Layla Al Mansoori",
+    initials: "LA",
+    role: "super-admin",
+    module: "marketing",
+    label: "Marketing Super Admin",
+  },
+  {
+    id: "marketing-admin",
+    name: "Sara Khalid",
+    initials: "SK",
+    role: "admin",
+    module: "marketing",
+    label: "Marketing Admin",
+  },
+  {
+    id: "marketing-staff",
+    name: "Noura Saeed",
+    initials: "NS",
+    role: "staff",
+    module: "marketing",
+    label: "Marketing Staff",
+  },
+];
