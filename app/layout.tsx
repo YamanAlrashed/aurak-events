@@ -1,6 +1,10 @@
-import type { Metadata, Viewport } from "next";
+import type {
+  Metadata,
+  Viewport,
+} from "next";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/lib/context/AuthContext";
+import { ToastProvider } from "@/lib/context/ToastContext";
 import "./globals.css";
 
 const inter = Inter({
@@ -11,9 +15,12 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "AURAK Events & Marketing",
-    template: "%s | AURAK Events & Marketing",
+    default:
+      "AURAK Events & Marketing",
+    template:
+      "%s | AURAK Events & Marketing",
   },
+
   description:
     "Campus Events and Marketing Events platform for the American University of Ras Al Khaimah.",
 };
@@ -31,9 +38,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html
+      lang="en"
+      className={inter.variable}
+    >
       <body className="min-h-dvh antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );
