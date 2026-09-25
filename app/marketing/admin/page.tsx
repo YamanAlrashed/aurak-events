@@ -1,291 +1,350 @@
 "use client";
 
-import { useState } from "react";
-import { PageHeader } from "@/components/layout/PageHeader";
 import {
-  Button,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+import Link from "next/link";
+import {
+  CalendarDays,
+  Plus,
+  Radio,
+} from "lucide-react";
+import type {
+  MarketingEvent,
+  MarketingEventStats,
+} from "@/lib/types";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { DemoDataControls } from "@/components/layout/DemoDataControls";
+import {
   Card,
   CardBody,
   CardHeader,
-  ConfirmDialog,
-  Field,
-  Modal,
-  MultiSelect,
-  NumberStepper,
-  StarRating,
-  StarRatingDisplay,
-  Toggle,
+  EmptyState,
 } from "@/components/ui";
-import { MockQrCode } from "@/components/shared/MockQrCode";
-import { MockQrScanner } from "@/components/shared/MockQrScanner";
-import { useToast } from "@/lib/context/ToastContext";
-import { STAFF_GROUPS } from "@/lib/data/marketing-reference";
+import { MarketingEventCard } from "@/components/marketing/MarketingEventCard";
+import { MarketingAnalyticsPanel } from "@/components/marketing/MarketingAnalyticsPanel";
+import { LoadingSection } from "@/components/shared/LoadingSection";
+import {
+  getDashboardData,
+  type MarketingDashboardData,
+} from "@/lib/services/marketingEventService";
+import { getStatsForEvents } from "@/lib/services/marketingAttendanceService";
+import { getEventTotals } from "@/lib/services/marketingAnalyticsService";
+import { formatMediumDate } from "@/lib/utils/dates";
+import { formatNumber } from "@/lib/utils/format";
 
-export default function OverlayHarnessPage() {
-  const { showToast } = useToast();
+interface EventTotal {
+  eventId: string;
+  eventName: string;
+  date: string;
+  students: number;
+  visitors: number;
+  attended: number;
+}
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [showRating, setShowRating] = useState(true);
-  const [staff, setStaff] = useState<string[]>([
-    "staff-jumana",
-    "staff-yaman",
-  ]);
-  const [guests, setGuests] = useState(1);
-  const [stars, setStars] = useState(0);
+export default function MarketingAdminDashboardPage() {
+  const [
+    data,
+    setData,
+  ] =
+    useState<
+      MarketingDashboardData | null
+    >(null);
 
-  const staffMultiSelectGroups = STAFF_GROUPS.map((group) => ({
-    id: group.department,
-    label: group.label,
-    options: group.members.map((member) => ({
-      value: member.id,
-      label: member.name,
-    })),
-  }));
+  const [
+    stats,
+    setStats,
+  ] = useState<
+    Record<
+      string,
+      MarketingEventStats
+    >
+  >({});
+
+  const [
+    totals,
+    setTotals,
+  ] =
+    useState<
+      EventTotal[]
+    >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const load =
+    useCallback(async () => {
+      setLoading(true);
+
+      const dashboard =
+        await getDashboardData();
+
+      const ids =
+        Array.from(
+          new Set(
+            [
+              ...dashboard.live,
+              ...dashboard.thisWeek,
+              ...dashboard.upcoming,
+              ...dashboard.recentlyCompleted,
+            ].map(
+              (event) =>
+                event.id
+            )
+          )
+        );
+
+      const [
+        eventStats,
+        eventTotals,
+      ] =
+        await Promise.all([
+          getStatsForEvents(
+            ids
+          ),
+          getEventTotals(),
+        ]);
+
+      setData(dashboard);
+      setStats(
+        eventStats
+      );
+      setTotals(
+        eventTotals
+      );
+      setLoading(false);
+    }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function renderList(
+    events: MarketingEvent[],
+    withStats: boolean
+  ) {
+    return (
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        {events.map(
+          (event) => (
+            <MarketingEventCard
+              key={event.id}
+              event={event}
+              href={`/marketing/admin/events/${event.id}`}
+              stats={
+                withStats
+                  ? stats[
+                      event.id
+                    ]
+                  : undefined
+              }
+            />
+          )
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="page space-y-6">
       <PageHeader
-        title="Overlay Harness"
-        subtitle="Temporary — replaced by the real dashboard in Phase 5."
+        title="Dashboard"
+        subtitle="Recruitment events, prospects and visitors across all activity."
         actions={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => setModalOpen(true)}
+            <Link
+              href="/marketing/admin/events"
+              className="btn btn-secondary"
             >
-              Open Modal
-            </Button>
+              All Events
+            </Link>
 
-            <Button
-              variant="danger-soft"
-              onClick={() => setConfirmOpen(true)}
+            <Link
+              href="/marketing/admin/events/new"
+              className="btn btn-primary"
             >
-              Delete Event
-            </Button>
+              <Plus className="h-4 w-4" />
+              Create Event
+            </Link>
           </>
         }
       />
 
-      <Card>
-        <CardHeader title="Toasts" />
+      {loading ||
+      !data ? (
+        <LoadingSection rows={3} />
+      ) : (
+        <>
+          <MarketingAnalyticsPanel />
 
-        <CardBody className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() =>
-              showToast({
-                title: "Event created",
-                description: "AI Workshop is now upcoming.",
-              })
-            }
-          >
-            Success
-          </Button>
+          {data.live.length >
+            0 && (
+            <section className="space-y-3">
+              <h2 className="section-title flex items-center gap-2">
+                <Radio
+                  className="h-4 w-4 text-[var(--aurak-live)]"
+                  aria-hidden
+                />
+                Happening now
+              </h2>
 
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() =>
-              showToast({
-                title: "Already checked in",
-                variant: "error",
-              })
-            }
-          >
-            Error
-          </Button>
+              {renderList(
+                data.live,
+                true
+              )}
+            </section>
+          )}
 
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              showToast({
-                title: "Export started",
-                variant: "info",
-              })
-            }
-          >
-            Info
-          </Button>
-        </CardBody>
-      </Card>
+          <section className="space-y-3">
+            <h2 className="section-title">
+              This week
+            </h2>
 
-      <Card>
-        <CardHeader title="Toggle" />
+            {data.thisWeek.length ===
+            0 ? (
+              <Card>
+                <EmptyState
+                  icon={
+                    <CalendarDays className="h-6 w-6" />
+                  }
+                  title="No events in the next 7 days"
+                  action={
+                    <Link
+                      href="/marketing/admin/events/new"
+                      className="btn btn-primary btn-sm"
+                    >
+                      Create Event
+                    </Link>
+                  }
+                />
+              </Card>
+            ) : (
+              renderList(
+                data.thisWeek,
+                false
+              )
+            )}
+          </section>
 
-        <CardBody>
-          <Toggle
-            checked={showRating}
-            onChange={setShowRating}
-            label="Show Average Rating to Users"
-            description="When off, users see the gallery and event details but not the average rating."
-          />
-        </CardBody>
-      </Card>
+          <section className="space-y-3">
+            <h2 className="section-title">
+              Upcoming events
+            </h2>
 
-      <Card>
-        <CardHeader title="Assign staff (grouped multi-select)" />
+            {data.upcoming.length ===
+            0 ? (
+              <Card>
+                <EmptyState title="No upcoming events" />
+              </Card>
+            ) : (
+              renderList(
+                data.upcoming,
+                false
+              )
+            )}
+          </section>
 
-        <CardBody>
-          <MultiSelect
-            groups={staffMultiSelectGroups}
-            selected={staff}
-            onChange={setStaff}
-            searchPlaceholder="Search staff…"
-            emptyLabel="No staff assigned yet."
-          />
-        </CardBody>
-      </Card>
+          <section className="space-y-3">
+            <h2 className="section-title">
+              Recently completed
+            </h2>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Visitor count" />
+            {data.recentlyCompleted
+              .length === 0 ? (
+              <Card>
+                <EmptyState title="No completed events yet" />
+              </Card>
+            ) : (
+              renderList(
+                data.recentlyCompleted,
+                true
+              )
+            )}
+          </section>
 
-          <CardBody>
-            <NumberStepper
-              value={guests}
-              onChange={setGuests}
-              min={1}
-              max={10}
-              quickPicks={[1, 2, 3, 4]}
-            />
-          </CardBody>
-        </Card>
+          <Card>
+            <CardHeader title="Event totals" />
 
-        <Card>
-          <CardHeader title="Ratings" />
+            <CardBody>
+              <div className="scroll-x">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Event</th>
+                      <th>Date</th>
+                      <th>Students</th>
+                      <th>Visitors</th>
+                      <th>Attended</th>
+                    </tr>
+                  </thead>
 
-          <CardBody className="space-y-4">
-            <div>
-              <p className="label">
-                Interactive (click again to clear)
+                  <tbody>
+                    {totals.map(
+                      (row) => (
+                        <tr
+                          key={
+                            row.eventId
+                          }
+                        >
+                          <td>
+                            <Link
+                              href={`/marketing/admin/events/${row.eventId}`}
+                              className="link"
+                            >
+                              {
+                                row.eventName
+                              }
+                            </Link>
+                          </td>
+
+                          <td>
+                            {formatMediumDate(
+                              row.date
+                            )}
+                          </td>
+
+                          <td className="table-numeric">
+                            {formatNumber(
+                              row.students
+                            )}
+                          </td>
+
+                          <td className="table-numeric">
+                            {formatNumber(
+                              row.visitors
+                            )}
+                          </td>
+
+                          <td className="table-numeric">
+                            {formatNumber(
+                              row.attended
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="field-hint mt-3">
+                Students counts prospects who
+                registered. Visitors counts
+                people who arrived, including
+                the guests they brought. The
+                two columns are never added
+                together.
               </p>
+            </CardBody>
+          </Card>
 
-              <StarRating
-                value={stars}
-                onChange={setStars}
-              />
-
-              <p className="meta-text mt-1">
-                Value: {stars}
-              </p>
-            </div>
-
-            <div>
-              <p className="label">
-                Read-only average
-              </p>
-
-              <StarRatingDisplay
-                average={4.3}
-                count={48}
-                size="md"
-              />
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Mock QR — one per user + event" />
-
-          <CardBody className="flex flex-wrap items-start justify-center gap-6">
-            <MockQrCode
-              code="AURAK-CE-evt_001-cu_2023006308"
-              size={160}
-            />
-
-            <MockQrCode
-              code="AURAK-CE-evt_002-cu_2023006308"
-              size={160}
-            />
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader title="Mock scanner" />
-
-          <CardBody>
-            <MockQrScanner
-              samples={[
-                {
-                  code: "AURAK-CE-evt_001-cu_2023006308",
-                  label: "Omar Al Hashmi",
-                  hint: "RSVP: Yes",
-                },
-                {
-                  code: "AURAK-CE-evt_001-cu_1001",
-                  label: "Sara Al Mansoori",
-                  hint: "Already checked in",
-                },
-              ]}
-              onScan={(code) =>
-                showToast({
-                  title: "Scanned",
-                  description: code,
-                  variant: "info",
-                })
-              }
-            />
-          </CardBody>
-        </Card>
-      </div>
-
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Export Event Data"
-        description="Prototype export — no file is produced yet."
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setModalOpen(false)}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              onClick={() => {
-                setModalOpen(false);
-
-                showToast({
-                  title: "Export ready",
-                });
-              }}
-            >
-              Export
-            </Button>
-          </>
-        }
-      >
-        <Field label="Scope">
-          <p className="meta-text">
-            Modal body content scrolls if it gets tall.
-          </p>
-        </Field>
-      </Modal>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        title="Delete this event?"
-        description="Only upcoming and cancelled events can be deleted. This cannot be undone."
-        confirmLabel="Delete Event"
-        destructive
-        onConfirm={async () => {
-          await new Promise((resolve) =>
-            setTimeout(resolve, 900)
-          );
-
-          showToast({
-            title: "Event deleted",
-            variant: "success",
-          });
-        }}
-      />
+          <DemoDataControls />
+        </>
+      )}
     </div>
   );
 }

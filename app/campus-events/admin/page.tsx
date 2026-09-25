@@ -1,234 +1,269 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarDays, Users } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
-  Badge,
-  Button,
+  Archive,
+  CalendarDays,
+  CheckCircle2,
+  Plus,
+  Radio,
+} from "lucide-react";
+import type {
+  CampusEvent,
+  RsvpBreakdown,
+} from "@/lib/types";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { DemoDataControls } from "@/components/layout/DemoDataControls";
+import {
   Card,
   CardBody,
   CardHeader,
   EmptyState,
-  Field,
-  SearchInput,
-  Select,
   StatCard,
-  Tabs,
-  TextField,
 } from "@/components/ui";
-import { EventStatusBadge } from "@/components/shared/EventStatusBadge";
-import { BUILDING_OPTIONS } from "@/lib/data/campus-reference";
-import { describeTargetAudience } from "@/lib/utils/format";
+import { CampusEventCard } from "@/components/campus/CampusEventCard";
 import {
-  formatDateProximity,
-  formatEventDate,
-  formatTimeRange,
-  todayISO,
-} from "@/lib/utils/dates";
+  LoadingSection,
+  LoadingStats,
+} from "@/components/shared/LoadingSection";
+import {
+  getDashboardData,
+  type CampusDashboardData,
+} from "@/lib/services/campusEventService";
+import { getBreakdowns } from "@/lib/services/campusRsvpService";
+import { getAttendedCounts } from "@/lib/services/campusAttendanceService";
 
-export default function PrimitiveHarnessPage() {
-  const [search, setSearch] = useState("");
-  const [tab, setTab] = useState("overview");
-  const [loading, setLoading] = useState(false);
+export default function CampusAdminDashboardPage() {
+  const [data, setData] =
+    useState<CampusDashboardData | null>(null);
 
-  const today = todayISO();
+  const [rsvps, setRsvps] =
+    useState<Record<string, RsvpBreakdown>>({});
+
+  const [attended, setAttended] =
+    useState<Record<string, number>>({});
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+
+    const dashboard =
+      await getDashboardData();
+
+    const ids = Array.from(
+      new Set(
+        [
+          ...dashboard.live,
+          ...dashboard.thisWeek,
+          ...dashboard.upcoming,
+          ...dashboard.recentlyCompleted,
+        ].map((event) => event.id)
+      )
+    );
+
+    const [breakdowns, counts] =
+      await Promise.all([
+        getBreakdowns(ids),
+        getAttendedCounts(ids),
+      ]);
+
+    setData(dashboard);
+    setRsvps(breakdowns);
+    setAttended(counts);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function renderList(
+    events: CampusEvent[],
+    showAttended: boolean
+  ) {
+    return (
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        {events.map((event) => (
+          <CampusEventCard
+            key={event.id}
+            event={event}
+            href={`/campus-events/admin/events/${event.id}`}
+            rsvp={rsvps[event.id]}
+            attendedCount={
+              showAttended
+                ? attended[event.id]
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="page space-y-6">
       <PageHeader
-        title="Primitive Harness"
-        subtitle="Temporary — replaced by the real dashboard in Phase 5."
+        title="Dashboard"
+        subtitle="Campus events at a glance. Open an event for its full statistics."
         actions={
           <>
-            <Button variant="secondary">Export</Button>
-
-            <Button
-              loading={loading}
-              onClick={() => {
-                setLoading(true);
-                setTimeout(() => setLoading(false), 1200);
-              }}
+            <Link
+              href="/campus-events/admin/events"
+              className="btn btn-secondary"
             >
+              All Events
+            </Link>
+
+            <Link
+              href="/campus-events/admin/events/new"
+              className="btn btn-primary"
+            >
+              <Plus className="h-4 w-4" />
               Create Event
-            </Button>
+            </Link>
           </>
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          label="RSVP Yes"
-          value={160}
-          caption="Not attendance"
-          icon={<Users className="h-4 w-4" />}
-        />
-
-        <StatCard
-          label="Checked In"
-          value={127}
-          caption="From QR scans"
-        />
-
-        <StatCard
-          label="Upcoming"
-          value={8}
-          icon={<CalendarDays className="h-4 w-4" />}
-        />
-
-        <StatCard
-          label="Avg Rating"
-          value="4.3"
-          caption="48 ratings"
-        />
-      </div>
-
-      <Card>
-        <CardHeader title="Status badges (derived from the clock)" />
-
-        <CardBody className="flex flex-wrap gap-2">
-          <EventStatusBadge
-            event={{
-              date: "2027-01-01",
-              startTime: "09:00",
-              endTime: "11:00",
-              status: "upcoming",
-            }}
-          />
-
-          <EventStatusBadge
-            event={{
-              date: today,
-              startTime: "00:01",
-              endTime: "23:59",
-              status: "upcoming",
-            }}
-          />
-
-          <EventStatusBadge
-            event={{
-              date: "2024-01-01",
-              startTime: "09:00",
-              endTime: "11:00",
-              status: "upcoming",
-            }}
-          />
-
-          <EventStatusBadge
-            event={{
-              date: "2024-01-01",
-              startTime: "09:00",
-              endTime: "11:00",
-              status: "archived",
-            }}
-          />
-
-          <Badge variant="brand">
-            Engineering
-          </Badge>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Dates" />
-
-        <CardBody className="space-y-1 text-sm">
-          <p>{formatEventDate("2026-10-14")}</p>
-          <p>{formatTimeRange("14:30", "17:00")}</p>
-          <p>Today → {formatDateProximity(today)}</p>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Target audience (notification routing only)" />
-
-        <CardBody className="space-y-1 text-sm">
-          <p>
-            {describeTargetAudience({
-              userTypes: ["student", "faculty"],
-              collegeIds: ["college-engineering"],
-              departmentIds: [],
-              programIds: [],
-            })}
-          </p>
-
-          <p>
-            {describeTargetAudience({
-              userTypes: ["student"],
-              collegeIds: [],
-              departmentIds: [],
-              programIds: [],
-            })}
-          </p>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Form controls" />
-
-        <CardBody className="grid gap-4 sm:grid-cols-2">
-          <TextField
-            label="Event Name"
-            required
-            placeholder="AI Workshop"
-          />
-
-          <TextField
-            label="With error"
-            error="This field is required."
-            defaultValue="bad"
-          />
-
-          <Field label="Location" required>
-            <Select
-              options={BUILDING_OPTIONS}
-              placeholder="Select a building"
-              defaultValue=""
+      {loading || !data ? (
+        <>
+          <LoadingStats />
+          <LoadingSection rows={3} />
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              label="Upcoming"
+              value={data.counts.upcoming}
+              icon={
+                <CalendarDays className="h-4 w-4" />
+              }
             />
-          </Field>
 
-          <Field label="Search">
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Search events…"
+            <StatCard
+              label="This Week"
+              value={data.counts.thisWeek}
+              caption="Next 7 days"
             />
-          </Field>
-        </CardBody>
-      </Card>
 
-      <Card>
-        <Tabs
-          className="px-5 pt-1"
-          items={[
-            { id: "overview", label: "Overview" },
-            { id: "rsvp", label: "RSVP", count: 220 },
-            { id: "attendees", label: "Attendees", count: 127 },
-            { id: "gallery", label: "Gallery", count: 12 },
-          ]}
-          activeId={tab}
-          onChange={setTab}
-        />
+            <StatCard
+              label="Completed"
+              value={data.counts.completed}
+              icon={
+                <CheckCircle2 className="h-4 w-4" />
+              }
+            />
 
-        <CardBody>
-          <p className="meta-text">
-            Active tab: {tab}
-          </p>
-        </CardBody>
-      </Card>
+            <StatCard
+              label="Archived"
+              value={data.counts.archived}
+              icon={
+                <Archive className="h-4 w-4" />
+              }
+            />
+          </div>
 
-      <Card>
-        <EmptyState
-          icon={<CalendarDays className="h-6 w-6" />}
-          title="No events yet"
-          description="Create your first event to get started."
-          action={
-            <Button size="sm">
-              Create Event
-            </Button>
-          }
-        />
-      </Card>
+          {data.live.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="section-title flex items-center gap-2">
+                <Radio
+                  className="h-4 w-4 text-[var(--aurak-live)]"
+                  aria-hidden
+                />
+                Happening now
+              </h2>
+
+              {renderList(
+                data.live,
+                true
+              )}
+            </section>
+          )}
+
+          <section className="space-y-3">
+            <h2 className="section-title">
+              Events this week
+            </h2>
+
+            {data.thisWeek.length === 0 ? (
+              <Card>
+                <EmptyState
+                  icon={
+                    <CalendarDays className="h-6 w-6" />
+                  }
+                  title="Nothing scheduled in the next 7 days"
+                  description="Create an event to get started."
+                  action={
+                    <Link
+                      href="/campus-events/admin/events/new"
+                      className="btn btn-primary btn-sm"
+                    >
+                      Create Event
+                    </Link>
+                  }
+                />
+              </Card>
+            ) : (
+              renderList(
+                data.thisWeek,
+                false
+              )
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="section-title">
+              Upcoming events
+            </h2>
+
+            {data.upcoming.length === 0 ? (
+              <Card>
+                <EmptyState title="No upcoming events" />
+              </Card>
+            ) : (
+              renderList(
+                data.upcoming,
+                false
+              )
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="section-title">
+              Recently completed
+            </h2>
+
+            {data.recentlyCompleted.length === 0 ? (
+              <Card>
+                <EmptyState title="No completed events yet" />
+              </Card>
+            ) : (
+              renderList(
+                data.recentlyCompleted,
+                true
+              )
+            )}
+          </section>
+
+          <Card>
+            <CardHeader title="Reminder" />
+
+            <CardBody>
+              <p className="meta-text">
+                RSVP totals are responses, not attendance.
+                Attendance only increases when Campus Staff
+                scan a QR code at the event.
+              </p>
+            </CardBody>
+          </Card>
+
+          <DemoDataControls />
+        </>
+      )}
     </div>
   );
 }
