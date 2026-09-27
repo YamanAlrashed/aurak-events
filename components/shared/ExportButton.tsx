@@ -7,17 +7,27 @@ import { useToast } from "@/lib/context/ToastContext";
 import {
   exportCampusEvent,
   exportMarketingEvent,
+  exportPreRegisteredNoShows,
+  type ExportResult,
 } from "@/lib/services/exportService";
+
+/**
+ * "event"    - the full registration / attendee export
+ * "no_shows" - marketing only: pre-registered prospects who did not attend
+ */
+export type ExportKind = "event" | "no_shows";
 
 export function ExportButton({
   module,
   eventId,
-  label = "Export Event Data",
+  kind = "event",
+  label,
   size = "md",
   variant = "secondary",
 }: {
   module: "campus" | "marketing";
   eventId: string;
+  kind?: ExportKind;
   label?: string;
   size?: "sm" | "md";
   variant?: "primary" | "secondary";
@@ -25,14 +35,38 @@ export function ExportButton({
   const { showToast } = useToast();
   const [working, setWorking] = useState(false);
 
+  const isNoShowExport = module === "marketing" && kind === "no_shows";
+
+  const resolvedLabel =
+    label ??
+    (isNoShowExport
+      ? "Export Pre-registered No-shows"
+      : "Export Event Data");
+
   async function handleExport() {
     setWorking(true);
 
     try {
-      const result =
-        module === "campus"
-          ? await exportCampusEvent(eventId)
-          : await exportMarketingEvent(eventId);
+      let result: ExportResult;
+
+      if (module === "campus") {
+        result = await exportCampusEvent(eventId);
+      } else if (isNoShowExport) {
+        result = await exportPreRegisteredNoShows(eventId);
+      } else {
+        result = await exportMarketingEvent(eventId);
+      }
+
+      if (result.rowCount === 0) {
+        showToast({
+          title: "Nothing to export",
+          description: isNoShowExport
+            ? "Every pre-registered prospect for this event was checked in."
+            : "There are no records for this event yet.",
+          variant: "info",
+        });
+        return;
+      }
 
       showToast({
         title: "Export ready",
@@ -58,7 +92,7 @@ export function ExportButton({
       onClick={handleExport}
       icon={<Download className="h-4 w-4" />}
     >
-      {label}
+      {resolvedLabel}
     </Button>
   );
 }

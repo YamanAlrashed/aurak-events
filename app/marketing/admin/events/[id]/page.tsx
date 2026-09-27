@@ -1,27 +1,10 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  useParams,
-  useRouter,
-} from "next/navigation";
-import {
-  Ban,
-  Copy,
-  ExternalLink,
-  MapPin,
-  Pencil,
-  Trash2,
-} from "lucide-react";
-import type {
-  MarketingEvent,
-  MarketingEventStats,
-} from "@/lib/types";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Ban, Copy, ExternalLink, MapPin, Pencil, Trash2 } from "lucide-react";
+import type { MarketingEvent, MarketingEventStats } from "@/lib/types";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Badge,
@@ -65,116 +48,93 @@ import {
 } from "@/lib/utils/dates";
 import { formatNumber } from "@/lib/utils/format";
 
-type TabId =
-  | "overview"
-  | "registrations"
-  | "crm"
-  | "analytics"
-  | "team"
-  | "feedback";
+const TAB_IDS = [
+  "overview",
+  "registrations",
+  "crm",
+  "analytics",
+  "team",
+  "feedback",
+] as const;
+
+type TabId = (typeof TAB_IDS)[number];
+
+function isTabId(value: string | null): value is TabId {
+  return value !== null && (TAB_IDS as readonly string[]).includes(value);
+}
+
+/* =============================================================================
+   Wrapped in Suspense because useSearchParams requires a boundary during
+   prerender. The ?tab= parameter lets the dashboard deep-link here.
+
+   EXPORTS live only in the Registrations tab, next to the data they describe,
+   so there is a single place to find them.
+   ========================================================================== */
 
 export default function MarketingAdminEventDetailPage() {
-  const params =
-    useParams<{
-      id: string;
-    }>();
-
-  const eventId =
-    params.id;
-
-  const router =
-    useRouter();
-
-  const { showToast } =
-    useToast();
-
-  const [
-    event,
-    setEvent,
-  ] =
-    useState<
-      MarketingEvent | null
-    >(null);
-
-  const [
-    stats,
-    setStats,
-  ] =
-    useState<
-      MarketingEventStats | null
-    >(null);
-
-  const [
-    feedbackCount,
-    setFeedbackCount,
-  ] = useState(0);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    tab,
-    setTab,
-  ] =
-    useState<TabId>(
-      "overview"
-    );
-
-  const [
-    refreshKey,
-    setRefreshKey,
-  ] = useState(0);
-
-  const [
-    deleteOpen,
-    setDeleteOpen,
-  ] = useState(false);
-
-  const [
-    cancelOpen,
-    setCancelOpen,
-  ] = useState(false);
-
-  const load =
-    useCallback(async () => {
-      setLoading(true);
-
-      const result =
-        await getEvent(
-          eventId
-        );
-
-      if (!result) {
-        setEvent(null);
-        setLoading(false);
-        return;
+  return (
+    <Suspense
+      fallback={
+        <div className="page space-y-5">
+          <PageHeader title="Event" />
+          <LoadingSection rows={3} />
+        </div>
       }
+    >
+      <MarketingAdminEventDetail />
+    </Suspense>
+  );
+}
 
-      const [
-        eventStats,
-        counts,
-      ] =
-        await Promise.all([
-          getEventStats(
-            eventId
-          ),
-          getFeedbackCounts([
-            eventId,
-          ]),
-        ]);
+function MarketingAdminEventDetail() {
+  const params = useParams<{ id: string }>();
+  const eventId = params.id;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { showToast } = useToast();
 
-      setEvent(result);
-      setStats(
-        eventStats
-      );
-      setFeedbackCount(
-        counts[eventId] ??
-          0
-      );
+  const requestedTab = searchParams.get("tab");
+
+  const [event, setEvent] = useState<MarketingEvent | null>(null);
+  const [stats, setStats] = useState<MarketingEventStats | null>(null);
+  const [feedbackCount, setFeedbackCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<TabId>(
+    isTabId(requestedTab) ? requestedTab : "overview"
+  );
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  /* Follow the query parameter when it changes, e.g. a second dashboard click. */
+  useEffect(() => {
+    if (isTabId(requestedTab)) {
+      setTab(requestedTab);
+    }
+  }, [requestedTab]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+
+    const result = await getEvent(eventId);
+
+    if (!result) {
+      setEvent(null);
       setLoading(false);
-    }, [eventId]);
+      return;
+    }
+
+    const [eventStats, counts] = await Promise.all([
+      getEventStats(eventId),
+      getFeedbackCounts([eventId]),
+    ]);
+
+    setEvent(result);
+    setStats(eventStats);
+    setFeedbackCount(counts[eventId] ?? 0);
+    setLoading(false);
+  }, [eventId]);
 
   useEffect(() => {
     void load();
@@ -186,24 +146,17 @@ export default function MarketingAdminEventDetailPage() {
     const url = `${window.location.origin}/marketing/register/${event.publicRegistrationCode}`;
 
     try {
-      await navigator.clipboard.writeText(
-        url
-      );
+      await navigator.clipboard.writeText(url);
 
       showToast({
-        title:
-          "Registration link copied",
-        description:
-          url,
+        title: "Registration link copied",
+        description: url,
       });
     } catch {
       showToast({
-        title:
-          "Could not copy automatically",
-        description:
-          url,
-        variant:
-          "info",
+        title: "Could not copy automatically",
+        description: url,
+        variant: "info",
       });
     }
   }
@@ -217,10 +170,7 @@ export default function MarketingAdminEventDetailPage() {
     );
   }
 
-  if (
-    !event ||
-    !stats
-  ) {
+  if (!event || !stats) {
     return (
       <div className="page">
         <Card>
@@ -240,39 +190,21 @@ export default function MarketingAdminEventDetailPage() {
     );
   }
 
-  const status =
-    deriveEventStatus(
-      event
-    );
-
-  const editable =
-    canEditEvent(
-      event
-    );
-
-  const deletable =
-    canDeleteEvent(
-      event
-    );
+  const status = deriveEventStatus(event);
+  const editable = canEditEvent(event);
+  const deletable = canDeleteEvent(event);
 
   const registrationPath =
     `/marketing/register/${event.publicRegistrationCode}`;
 
   const teamByDepartment =
-    STAFF_DEPARTMENT_ORDER.map(
-      (department) => ({
-        department,
-        members:
-          event.assignedStaff.filter(
-            (staff) =>
-              staff.department ===
-              department
-          ),
-      })
-    ).filter(
-      (group) =>
-        group.members.length >
-        0
+    STAFF_DEPARTMENT_ORDER.map((department) => ({
+      department,
+      members: event.assignedStaff.filter(
+        (staff) => staff.department === department
+      ),
+    })).filter(
+      (group) => group.members.length > 0
     );
 
   return (
@@ -284,13 +216,6 @@ export default function MarketingAdminEventDetailPage() {
         )}`}
         actions={
           <>
-            <ExportButton
-              module="marketing"
-              eventId={
-                event.id
-              }
-            />
-
             {editable && (
               <Link
                 href={`/marketing/admin/events/${event.id}/edit`}
@@ -301,14 +226,11 @@ export default function MarketingAdminEventDetailPage() {
               </Link>
             )}
 
-            {status ===
-              "upcoming" && (
+            {status === "upcoming" && (
               <Button
                 variant="secondary"
                 onClick={() =>
-                  setCancelOpen(
-                    true
-                  )
+                  setCancelOpen(true)
                 }
               >
                 <Ban className="h-4 w-4" />
@@ -320,9 +242,7 @@ export default function MarketingAdminEventDetailPage() {
               <Button
                 variant="danger-soft"
                 onClick={() =>
-                  setDeleteOpen(
-                    true
-                  )
+                  setDeleteOpen(true)
                 }
               >
                 <Trash2 className="h-4 w-4" />
@@ -334,9 +254,7 @@ export default function MarketingAdminEventDetailPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <EventStatusBadge
-          event={event}
-        />
+        <EventStatusBadge event={event} />
 
         <Badge variant="brand">
           {
@@ -349,23 +267,20 @@ export default function MarketingAdminEventDetailPage() {
         <Badge variant="neutral">
           {
             EMIRATE_LABELS[
-              event.location
-                .emirate
+              event.location.emirate
             ]
           }
         </Badge>
       </div>
 
+      {/* ---------- Public registration link ---------- */}
       <Card>
         <CardHeader title="Public registration link" />
 
         <CardBody className="space-y-3">
           <p className="meta-text">
-            Share this link by invitation
-            for pre-registration, or print
-            it as a QR code at the venue
-            for walk-ins. No login is
-            required.
+            Share this link by invitation for pre-registration, or print it as a
+            QR code at the venue for walk-ins. No login is required.
           </p>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -376,9 +291,7 @@ export default function MarketingAdminEventDetailPage() {
             <div className="flex gap-2">
               <Button
                 variant="secondary"
-                onClick={
-                  copyRegistrationLink
-                }
+                onClick={copyRegistrationLink}
                 icon={
                   <Copy className="h-4 w-4" />
                 }
@@ -387,9 +300,7 @@ export default function MarketingAdminEventDetailPage() {
               </Button>
 
               <Link
-                href={
-                  registrationPath
-                }
+                href={registrationPath}
                 target="_blank"
                 className="btn btn-secondary"
               >
@@ -406,223 +317,212 @@ export default function MarketingAdminEventDetailPage() {
           className="px-5 pt-1"
           items={[
             {
-              id:
-                "overview",
-              label:
-                "Overview",
+              id: "overview",
+              label: "Overview",
             },
             {
-              id:
-                "registrations",
-              label:
-                "Registrations",
-              count:
-                stats.totalRegistrations,
+              id: "registrations",
+              label: "Registrations",
+              count: stats.totalRegistrations,
             },
             {
               id: "crm",
-              label:
-                "CRM",
+              label: "CRM",
             },
             {
-              id:
-                "analytics",
-              label:
-                "Analytics",
+              id: "analytics",
+              label: "Analytics",
             },
             {
-              id:
-                "team",
-              label:
-                "Team",
-              count:
-                event.assignedStaff
-                  .length,
+              id: "team",
+              label: "Team",
+              count: event.assignedStaff.length,
             },
             {
-              id:
-                "feedback",
-              label:
-                "Staff Feedback",
-              count:
-                feedbackCount,
+              id: "feedback",
+              label: "Staff Feedback",
+              count: feedbackCount,
             },
           ]}
           activeId={tab}
           onChange={(id) =>
-            setTab(
-              id as TabId
-            )
+            setTab(id as TabId)
           }
         />
 
         <CardBody>
-          {tab ===
-            "overview" && (
+          {tab === "overview" && (
+            <DetailList
+              items={[
+                {
+                  label: "Event Type",
+                  value:
+                    MARKETING_EVENT_TYPE_LABELS[
+                      event.type
+                    ],
+                },
+                {
+                  label: "Date",
+                  value: formatEventDate(
+                    event.date
+                  ),
+                },
+                {
+                  label: "Time",
+                  value: formatTimeRange(
+                    event.startTime,
+                    event.endTime
+                  ),
+                },
+                {
+                  label: "Departure Time",
+                  value:
+                    event.departureTime
+                      ? formatTime(
+                          event.departureTime
+                        )
+                      : "Not set",
+                },
+                {
+                  label: "Emirate",
+                  value:
+                    EMIRATE_LABELS[
+                      event.location
+                        .emirate
+                    ],
+                },
+                {
+                  label: "Venue",
+                  value:
+                    event.location.venueName,
+                },
+                {
+                  label: "Location Link",
+                  value:
+                    event.location.mapUrl ? (
+                      <a
+                        href={
+                          event.location
+                            .mapUrl
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="link inline-flex items-center gap-1"
+                      >
+                        <MapPin
+                          className="h-3.5 w-3.5"
+                          aria-hidden
+                        />
+                        Open Map
+                      </a>
+                    ) : (
+                      "Not provided"
+                    ),
+                },
+                {
+                  label: "Driver",
+                  value:
+                    event.driver &&
+                    (event.driver.name.trim() ||
+                      event.driver.phone.trim())
+                      ? `${
+                          event.driver.name.trim() ||
+                          "Name not set"
+                        } · ${
+                          event.driver.phone.trim() ||
+                          "Phone not set"
+                        }`
+                      : "Not assigned",
+                },
+                {
+                  label: "Description",
+                  value:
+                    event.description ||
+                    "No description provided.",
+                  wide: true,
+                },
+                {
+                  label:
+                    "Students / Visitors",
+                  value: `${formatNumber(
+                    stats.students
+                  )} prospects registered · ${formatNumber(
+                    stats.visitors
+                  )} people attended (guests included)`,
+                  wide: true,
+                },
+              ]}
+            />
+          )}
+
+          {tab === "registrations" && (
             <div className="space-y-4">
-              <DetailList
-                items={[
-                  {
-                    label:
-                      "Event Type",
-                    value:
-                      MARKETING_EVENT_TYPE_LABELS[
-                        event.type
-                      ],
-                  },
-                  {
-                    label:
-                      "Date",
-                    value:
-                      formatEventDate(
-                        event.date
-                      ),
-                  },
-                  {
-                    label:
-                      "Time",
-                    value:
-                      formatTimeRange(
-                        event.startTime,
-                        event.endTime
-                      ),
-                  },
-                  {
-                    label:
-                      "Departure Time",
-                    value:
-                      event.departureTime
-                        ? formatTime(
-                            event.departureTime
-                          )
-                        : "Not set",
-                  },
-                  {
-                    label:
-                      "Emirate",
-                    value:
-                      EMIRATE_LABELS[
-                        event
-                          .location
-                          .emirate
-                      ],
-                  },
-                  {
-                    label:
-                      "Venue",
-                    value:
-                      event
-                        .location
-                        .venueName,
-                  },
-                  {
-                    label:
-                      "Location Link",
-                    value:
-                      event
-                        .location
-                        .mapUrl ? (
-                        <a
-                          href={
-                            event
-                              .location
-                              .mapUrl
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="link inline-flex items-center gap-1"
-                        >
-                          <MapPin
-                            className="h-3.5 w-3.5"
-                            aria-hidden
-                          />
-                          Open Map
-                        </a>
-                      ) : (
-                        "Not provided"
-                      ),
-                  },
-                  {
-                    label:
-                      "Driver",
-                    value:
-                      event.driver
-                        ? `${event.driver.name} · ${event.driver.phone}`
-                        : "Not assigned",
-                  },
-                  {
-                    label:
-                      "Description",
-                    value:
-                      event.description ||
-                      "No description provided.",
-                    wide: true,
-                  },
-                  {
-                    label:
-                      "Students / Visitors",
-                    value: `${formatNumber(
-                      stats.students
-                    )} prospects registered · ${formatNumber(
-                      stats.visitors
-                    )} people attended (guests included)`,
-                    wide: true,
-                  },
-                ]}
+              {/* The only place exports live, next to the data they describe. */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--aurak-line)] pb-4">
+                <p className="meta-text">
+                  {formatNumber(
+                    stats.preRegistered
+                  )}{" "}
+                  pre-registered ·{" "}
+                  {formatNumber(
+                    stats.walkIn
+                  )}{" "}
+                  walk-in ·{" "}
+                  {formatNumber(
+                    stats.attended
+                  )}{" "}
+                  attended
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  <ExportButton
+                    module="marketing"
+                    eventId={event.id}
+                    size="sm"
+                    label="Export Registrations"
+                  />
+
+                  <ExportButton
+                    module="marketing"
+                    eventId={event.id}
+                    kind="no_shows"
+                    size="sm"
+                    label="Export Pre-registered No-shows"
+                  />
+                </div>
+              </div>
+
+              <RegistrationTable
+                eventId={event.id}
+                refreshKey={refreshKey}
               />
             </div>
           )}
 
-          {tab ===
-            "registrations" && (
-            <RegistrationTable
-              eventId={
-                event.id
-              }
-              refreshKey={
-                refreshKey
-              }
-            />
-          )}
-
-          {tab ===
-            "crm" && (
+          {tab === "crm" && (
             <CrmBreakdownPanel
-              eventId={
-                event.id
-              }
-              stats={
-                stats
-              }
+              eventId={event.id}
+              stats={stats}
               onStatsChanged={() => {
                 setRefreshKey(
-                  (key) =>
-                    key + 1
+                  (key) => key + 1
                 );
                 void load();
               }}
             />
           )}
 
-          {tab ===
-            "analytics" && (
+          {tab === "analytics" && (
             <MarketingAnalyticsPanel
-              eventId={
-                event.id
-              }
-              refreshKey={
-                refreshKey
-              }
+              eventId={event.id}
+              refreshKey={refreshKey}
             />
           )}
 
-          {tab ===
-            "team" && (
+          {tab === "team" && (
             <div className="space-y-4">
-              {event
-                .assignedStaff
-                .length ===
-              0 ? (
+              {event.assignedStaff
+                .length === 0 ? (
                 <EmptyState
                   title="No staff assigned"
                   description="Edit the event to assign people from Admission, Student Recruitment or the Call Center."
@@ -654,8 +554,7 @@ export default function MarketingAdminEventDetailPage() {
                         }{" "}
                         (
                         {
-                          group
-                            .members
+                          group.members
                             .length
                         }
                         )
@@ -663,9 +562,7 @@ export default function MarketingAdminEventDetailPage() {
 
                       <div className="mt-2 flex flex-wrap gap-2">
                         {group.members.map(
-                          (
-                            member
-                          ) => (
+                          (member) => (
                             <span
                               key={
                                 member.staffId
@@ -692,65 +589,66 @@ export default function MarketingAdminEventDetailPage() {
                 )
               )}
 
-              {event.driver && (
-                <Card>
-                  <CardHeader title="Transport" />
+              {event.driver &&
+                (event.driver.name.trim() ||
+                  event.driver.phone.trim()) && (
+                  <Card>
+                    <CardHeader title="Transport" />
 
-                  <CardBody>
-                    <DetailList
-                      items={[
-                        {
-                          label:
-                            "Driver Name",
-                          value:
-                            event
-                              .driver
-                              .name,
-                        },
-                        {
-                          label:
-                            "Driver Phone",
-                          value: (
-                            <a
-                              href={`tel:${event.driver.phone.replace(/\s/g, "")}`}
-                              className="link"
-                            >
-                              {
-                                event
-                                  .driver
-                                  .phone
-                              }
-                            </a>
-                          ),
-                        },
-                      ]}
-                    />
-                  </CardBody>
-                </Card>
-              )}
+                    <CardBody>
+                      <DetailList
+                        items={[
+                          {
+                            label:
+                              "Driver Name",
+                            value:
+                              event.driver.name.trim() ||
+                              "Not set",
+                          },
+                          {
+                            label:
+                              "Driver Phone",
+                            value:
+                              event.driver.phone.trim() ? (
+                                <a
+                                  href={`tel:${event.driver.phone.replace(
+                                    /\s/g,
+                                    ""
+                                  )}`}
+                                  className="link"
+                                >
+                                  {
+                                    event
+                                      .driver
+                                      .phone
+                                  }
+                                </a>
+                              ) : (
+                                "Not set"
+                              ),
+                          },
+                        ]}
+                      />
+                    </CardBody>
+                  </Card>
+                )}
             </div>
           )}
 
-          {tab ===
-            "feedback" && (
+          {tab === "feedback" && (
             <StaffFeedbackPanel
-              eventId={
-                event.id
-              }
-              refreshKey={
-                refreshKey
-              }
+              eventId={event.id}
+              refreshKey={refreshKey}
             />
           )}
         </CardBody>
       </Card>
 
+      {/* ---------- Destructive confirmations ---------- */}
       <ConfirmDialog
         open={deleteOpen}
         onClose={() =>
-          setDeleteOpen(
-            false
-          )
+          setDeleteOpen(false)
         }
         title="Delete this event?"
         description="The event and all of its registrations, attendance records and staff feedback will be removed. This cannot be undone."
@@ -775,12 +673,10 @@ export default function MarketingAdminEventDetailPage() {
               title:
                 "Could not delete the event",
               description:
-                error instanceof
-                Error
+                error instanceof Error
                   ? error.message
                   : "Please try again.",
-              variant:
-                "error",
+              variant: "error",
             });
           }
         }}
@@ -789,17 +685,13 @@ export default function MarketingAdminEventDetailPage() {
       <ConfirmDialog
         open={cancelOpen}
         onClose={() =>
-          setCancelOpen(
-            false
-          )
+          setCancelOpen(false)
         }
         title="Cancel this event?"
         description="The event stays visible and marked as cancelled. It can still be edited or deleted."
         confirmLabel="Cancel Event"
         onConfirm={async () => {
-          await cancelEvent(
-            event.id
-          );
+          await cancelEvent(event.id);
 
           showToast({
             title:
