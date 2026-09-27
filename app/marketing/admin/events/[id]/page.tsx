@@ -1,10 +1,29 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Ban, Copy, ExternalLink, MapPin, Pencil, Trash2 } from "lucide-react";
-import type { MarketingEvent, MarketingEventStats } from "@/lib/types";
+import {
+  useParams,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
+import {
+  Ban,
+  Copy,
+  ExternalLink,
+  MapPin,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import type {
+  MarketingEvent,
+  MarketingEventStats,
+} from "@/lib/types";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Badge,
@@ -21,7 +40,6 @@ import { DetailList } from "@/components/shared/DetailList";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { LoadingSection } from "@/components/shared/LoadingSection";
 import { RegistrationTable } from "@/components/marketing/RegistrationTable";
-import { CrmBreakdownPanel } from "@/components/marketing/CrmBreakdownPanel";
 import { MarketingAnalyticsPanel } from "@/components/marketing/MarketingAnalyticsPanel";
 import { StaffFeedbackPanel } from "@/components/marketing/StaffFeedbackPanel";
 import {
@@ -36,7 +54,6 @@ import { getFeedbackCounts } from "@/lib/services/staffFeedbackService";
 import { useToast } from "@/lib/context/ToastContext";
 import {
   EMIRATE_LABELS,
-  MARKETING_EVENT_TYPE_LABELS,
   STAFF_DEPARTMENT_LABELS,
   STAFF_DEPARTMENT_ORDER,
 } from "@/lib/data/marketing-reference";
@@ -51,24 +68,38 @@ import { formatNumber } from "@/lib/utils/format";
 const TAB_IDS = [
   "overview",
   "registrations",
-  "crm",
   "analytics",
   "team",
   "feedback",
 ] as const;
 
-type TabId = (typeof TAB_IDS)[number];
+type TabId =
+  (typeof TAB_IDS)[number];
 
-function isTabId(value: string | null): value is TabId {
-  return value !== null && (TAB_IDS as readonly string[]).includes(value);
+function isTabId(
+  value: string | null
+): value is TabId {
+  return (
+    value !== null &&
+    (
+      TAB_IDS as readonly string[]
+    ).includes(value)
+  );
 }
 
 /* =============================================================================
-   Wrapped in Suspense because useSearchParams requires a boundary during
-   prerender. The ?tab= parameter lets the dashboard deep-link here.
+   MARKETING EVENT DETAIL
 
-   EXPORTS live only in the Registrations tab, next to the data they describe,
-   so there is a single place to find them.
+   CRM has been removed from the admin interface because the information was
+   repeating data already available through registrations and analytics.
+
+   Analytics remains available.
+
+   Event Type is also no longer displayed because Event Name now carries the
+   event category in the admin interface.
+
+   The underlying data fields are left intact for compatibility with the
+   existing mock store and services.
    ========================================================================== */
 
 export default function MarketingAdminEventDetailPage() {
@@ -87,54 +118,102 @@ export default function MarketingAdminEventDetailPage() {
 }
 
 function MarketingAdminEventDetail() {
-  const params = useParams<{ id: string }>();
+  const params =
+    useParams<{ id: string }>();
+
   const eventId = params.id;
-  const searchParams = useSearchParams();
+
+  const searchParams =
+    useSearchParams();
+
   const router = useRouter();
-  const { showToast } = useToast();
 
-  const requestedTab = searchParams.get("tab");
+  const { showToast } =
+    useToast();
 
-  const [event, setEvent] = useState<MarketingEvent | null>(null);
-  const [stats, setStats] = useState<MarketingEventStats | null>(null);
-  const [feedbackCount, setFeedbackCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabId>(
-    isTabId(requestedTab) ? requestedTab : "overview"
-  );
-  const [refreshKey, setRefreshKey] = useState(0);
+  const requestedTab =
+    searchParams.get("tab");
 
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
+  const [event, setEvent] =
+    useState<MarketingEvent | null>(
+      null
+    );
 
-  /* Follow the query parameter when it changes, e.g. a second dashboard click. */
+  const [stats, setStats] =
+    useState<MarketingEventStats | null>(
+      null
+    );
+
+  const [
+    feedbackCount,
+    setFeedbackCount,
+  ] = useState(0);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [tab, setTab] =
+    useState<TabId>(
+      isTabId(requestedTab)
+        ? requestedTab
+        : "overview"
+    );
+
+  const [
+    refreshKey,
+    setRefreshKey,
+  ] = useState(0);
+
+  const [
+    deleteOpen,
+    setDeleteOpen,
+  ] = useState(false);
+
+  const [
+    cancelOpen,
+    setCancelOpen,
+  ] = useState(false);
+
   useEffect(() => {
-    if (isTabId(requestedTab)) {
+    if (
+      isTabId(requestedTab)
+    ) {
       setTab(requestedTab);
     }
   }, [requestedTab]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load =
+    useCallback(async () => {
+      setLoading(true);
 
-    const result = await getEvent(eventId);
+      const result =
+        await getEvent(eventId);
 
-    if (!result) {
-      setEvent(null);
+      if (!result) {
+        setEvent(null);
+        setLoading(false);
+        return;
+      }
+
+      const [
+        eventStats,
+        counts,
+      ] = await Promise.all([
+        getEventStats(eventId),
+        getFeedbackCounts([
+          eventId,
+        ]),
+      ]);
+
+      setEvent(result);
+      setStats(eventStats);
+
+      setFeedbackCount(
+        counts[eventId] ?? 0
+      );
+
       setLoading(false);
-      return;
-    }
-
-    const [eventStats, counts] = await Promise.all([
-      getEventStats(eventId),
-      getFeedbackCounts([eventId]),
-    ]);
-
-    setEvent(result);
-    setStats(eventStats);
-    setFeedbackCount(counts[eventId] ?? 0);
-    setLoading(false);
-  }, [eventId]);
+    }, [eventId]);
 
   useEffect(() => {
     void load();
@@ -143,18 +222,23 @@ function MarketingAdminEventDetail() {
   async function copyRegistrationLink() {
     if (!event) return;
 
-    const url = `${window.location.origin}/marketing/register/${event.publicRegistrationCode}`;
+    const url =
+      `${window.location.origin}/marketing/register/${event.publicRegistrationCode}`;
 
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(
+        url
+      );
 
       showToast({
-        title: "Registration link copied",
+        title:
+          "Registration link copied",
         description: url,
       });
     } catch {
       showToast({
-        title: "Could not copy automatically",
+        title:
+          "Could not copy automatically",
         description: url,
         variant: "info",
       });
@@ -190,30 +274,41 @@ function MarketingAdminEventDetail() {
     );
   }
 
-  const status = deriveEventStatus(event);
-  const editable = canEditEvent(event);
-  const deletable = canDeleteEvent(event);
+  const status =
+    deriveEventStatus(event);
+
+  const editable =
+    canEditEvent(event);
+
+  const deletable =
+    canDeleteEvent(event);
 
   const registrationPath =
     `/marketing/register/${event.publicRegistrationCode}`;
 
   const teamByDepartment =
-    STAFF_DEPARTMENT_ORDER.map((department) => ({
-      department,
-      members: event.assignedStaff.filter(
-        (staff) => staff.department === department
-      ),
-    })).filter(
-      (group) => group.members.length > 0
+    STAFF_DEPARTMENT_ORDER.map(
+      (department) => ({
+        department,
+        members:
+          event.assignedStaff.filter(
+            (staff) =>
+              staff.department ===
+              department
+          ),
+      })
+    ).filter(
+      (group) =>
+        group.members.length > 0
     );
 
   return (
     <div className="page space-y-5">
       <PageHeader
         title={event.name}
-        subtitle={`${MARKETING_EVENT_TYPE_LABELS[event.type]} · ${formatEventDate(
+        subtitle={formatEventDate(
           event.date
-        )}`}
+        )}
         actions={
           <>
             {editable && (
@@ -226,7 +321,8 @@ function MarketingAdminEventDetail() {
               </Link>
             )}
 
-            {status === "upcoming" && (
+            {status ===
+              "upcoming" && (
               <Button
                 variant="secondary"
                 onClick={() =>
@@ -254,15 +350,9 @@ function MarketingAdminEventDetail() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <EventStatusBadge event={event} />
-
-        <Badge variant="brand">
-          {
-            MARKETING_EVENT_TYPE_LABELS[
-              event.type
-            ]
-          }
-        </Badge>
+        <EventStatusBadge
+          event={event}
+        />
 
         <Badge variant="neutral">
           {
@@ -273,14 +363,17 @@ function MarketingAdminEventDetail() {
         </Badge>
       </div>
 
-      {/* ---------- Public registration link ---------- */}
+      {/* Public registration link */}
       <Card>
         <CardHeader title="Public registration link" />
 
         <CardBody className="space-y-3">
           <p className="meta-text">
-            Share this link by invitation for pre-registration, or print it as a
-            QR code at the venue for walk-ins. No login is required.
+            Share this link by invitation
+            for pre-registration, or
+            print it as a QR code at the
+            venue for walk-ins. No login
+            is required.
           </p>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -291,7 +384,9 @@ function MarketingAdminEventDetail() {
             <div className="flex gap-2">
               <Button
                 variant="secondary"
-                onClick={copyRegistrationLink}
+                onClick={
+                  copyRegistrationLink
+                }
                 icon={
                   <Copy className="h-4 w-4" />
                 }
@@ -300,7 +395,9 @@ function MarketingAdminEventDetail() {
               </Button>
 
               <Link
-                href={registrationPath}
+                href={
+                  registrationPath
+                }
                 target="_blank"
                 className="btn btn-secondary"
               >
@@ -322,12 +419,10 @@ function MarketingAdminEventDetail() {
             },
             {
               id: "registrations",
-              label: "Registrations",
-              count: stats.totalRegistrations,
-            },
-            {
-              id: "crm",
-              label: "CRM",
+              label:
+                "Registrations",
+              count:
+                stats.totalRegistrations,
             },
             {
               id: "analytics",
@@ -336,46 +431,49 @@ function MarketingAdminEventDetail() {
             {
               id: "team",
               label: "Team",
-              count: event.assignedStaff.length,
+              count:
+                event.assignedStaff
+                  .length,
             },
             {
               id: "feedback",
-              label: "Staff Feedback",
-              count: feedbackCount,
+              label:
+                "Staff Feedback",
+              count:
+                feedbackCount,
             },
           ]}
           activeId={tab}
           onChange={(id) =>
-            setTab(id as TabId)
+            setTab(
+              id as TabId
+            )
           }
         />
 
         <CardBody>
-          {tab === "overview" && (
+          {tab ===
+            "overview" && (
             <DetailList
               items={[
                 {
-                  label: "Event Type",
-                  value:
-                    MARKETING_EVENT_TYPE_LABELS[
-                      event.type
-                    ],
-                },
-                {
                   label: "Date",
-                  value: formatEventDate(
-                    event.date
-                  ),
+                  value:
+                    formatEventDate(
+                      event.date
+                    ),
                 },
                 {
                   label: "Time",
-                  value: formatTimeRange(
-                    event.startTime,
-                    event.endTime
-                  ),
+                  value:
+                    formatTimeRange(
+                      event.startTime,
+                      event.endTime
+                    ),
                 },
                 {
-                  label: "Departure Time",
+                  label:
+                    "Departure Time",
                   value:
                     event.departureTime
                       ? formatTime(
@@ -384,7 +482,8 @@ function MarketingAdminEventDetail() {
                       : "Not set",
                 },
                 {
-                  label: "Emirate",
+                  label:
+                    "Emirate",
                   value:
                     EMIRATE_LABELS[
                       event.location
@@ -394,12 +493,15 @@ function MarketingAdminEventDetail() {
                 {
                   label: "Venue",
                   value:
-                    event.location.venueName,
+                    event.location
+                      .venueName,
                 },
                 {
-                  label: "Location Link",
+                  label:
+                    "Location Link",
                   value:
-                    event.location.mapUrl ? (
+                    event.location
+                      .mapUrl ? (
                       <a
                         href={
                           event.location
@@ -423,8 +525,10 @@ function MarketingAdminEventDetail() {
                   label: "Driver",
                   value:
                     event.driver &&
-                    (event.driver.name.trim() ||
-                      event.driver.phone.trim())
+                    (
+                      event.driver.name.trim() ||
+                      event.driver.phone.trim()
+                    )
                       ? `${
                           event.driver.name.trim() ||
                           "Name not set"
@@ -435,7 +539,8 @@ function MarketingAdminEventDetail() {
                       : "Not assigned",
                 },
                 {
-                  label: "Description",
+                  label:
+                    "Description",
                   value:
                     event.description ||
                     "No description provided.",
@@ -455,9 +560,9 @@ function MarketingAdminEventDetail() {
             />
           )}
 
-          {tab === "registrations" && (
+          {tab ===
+            "registrations" && (
             <div className="space-y-4">
-              {/* The only place exports live, next to the data they describe. */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--aurak-line)] pb-4">
                 <p className="meta-text">
                   {formatNumber(
@@ -477,14 +582,18 @@ function MarketingAdminEventDetail() {
                 <div className="flex flex-wrap gap-2">
                   <ExportButton
                     module="marketing"
-                    eventId={event.id}
+                    eventId={
+                      event.id
+                    }
                     size="sm"
                     label="Export Registrations"
                   />
 
                   <ExportButton
                     module="marketing"
-                    eventId={event.id}
+                    eventId={
+                      event.id
+                    }
                     kind="no_shows"
                     size="sm"
                     label="Export Pre-registered No-shows"
@@ -493,29 +602,25 @@ function MarketingAdminEventDetail() {
               </div>
 
               <RegistrationTable
-                eventId={event.id}
-                refreshKey={refreshKey}
+                eventId={
+                  event.id
+                }
+                refreshKey={
+                  refreshKey
+                }
               />
             </div>
           )}
 
-          {tab === "crm" && (
-            <CrmBreakdownPanel
-              eventId={event.id}
-              stats={stats}
-              onStatsChanged={() => {
-                setRefreshKey(
-                  (key) => key + 1
-                );
-                void load();
-              }}
-            />
-          )}
-
-          {tab === "analytics" && (
+          {tab ===
+            "analytics" && (
             <MarketingAnalyticsPanel
-              eventId={event.id}
-              refreshKey={refreshKey}
+              eventId={
+                event.id
+              }
+              refreshKey={
+                refreshKey
+              }
             />
           )}
 
@@ -554,7 +659,8 @@ function MarketingAdminEventDetail() {
                         }{" "}
                         (
                         {
-                          group.members
+                          group
+                            .members
                             .length
                         }
                         )
@@ -590,8 +696,10 @@ function MarketingAdminEventDetail() {
               )}
 
               {event.driver &&
-                (event.driver.name.trim() ||
-                  event.driver.phone.trim()) && (
+                (
+                  event.driver.name.trim() ||
+                  event.driver.phone.trim()
+                ) && (
                   <Card>
                     <CardHeader title="Transport" />
 
@@ -635,16 +743,20 @@ function MarketingAdminEventDetail() {
             </div>
           )}
 
-          {tab === "feedback" && (
+          {tab ===
+            "feedback" && (
             <StaffFeedbackPanel
-              eventId={event.id}
-              refreshKey={refreshKey}
+              eventId={
+                event.id
+              }
+              refreshKey={
+                refreshKey
+              }
             />
           )}
         </CardBody>
       </Card>
 
-      {/* ---------- Destructive confirmations ---------- */}
       <ConfirmDialog
         open={deleteOpen}
         onClose={() =>
@@ -691,7 +803,9 @@ function MarketingAdminEventDetail() {
         description="The event stays visible and marked as cancelled. It can still be edited or deleted."
         confirmLabel="Cancel Event"
         onConfirm={async () => {
-          await cancelEvent(event.id);
+          await cancelEvent(
+            event.id
+          );
 
           showToast({
             title:

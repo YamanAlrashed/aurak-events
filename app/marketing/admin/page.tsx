@@ -14,11 +14,15 @@ import {
   Plus,
   Radio,
   Users,
-  UserSquare,
 } from "lucide-react";
 import type { MarketingEvent } from "@/lib/types";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Badge, Card, CardBody, EmptyState, StatCard } from "@/components/ui";
+import {
+  Card,
+  CardBody,
+  EmptyState,
+  StatCard,
+} from "@/components/ui";
 import { DemoDataControls } from "@/components/layout/DemoDataControls";
 import { LoadingSection } from "@/components/shared/LoadingSection";
 import {
@@ -28,10 +32,7 @@ import {
   type AttentionSeverity,
   type MarketingDashboardSummary,
 } from "@/lib/services/marketingDashboardService";
-import {
-  EMIRATE_LABELS,
-  MARKETING_EVENT_TYPE_LABELS,
-} from "@/lib/data/marketing-reference";
+import { EMIRATE_LABELS } from "@/lib/data/marketing-reference";
 import {
   formatCountdown,
   formatEventDate,
@@ -42,35 +43,59 @@ import {
 import { cn } from "@/lib/utils/cn";
 
 /* =============================================================================
-   Marketing Admin dashboard.
+   MARKETING ADMIN DASHBOARD
 
-   Deliberately operational: it answers "what needs attention right now".
-   Detailed figures — students, visitors, attendance, CRM and analytics — live
-   inside each event, where the admin opens them on purpose.
+   Kept intentionally simple.
+
+   The dashboard focuses on:
+   - how many events exist
+   - what event is next
+   - what needs attention
+   - the main admin actions
+   - today's active events
+   - the latest activity
+
+   Detailed registrations, attendance and analytics stay inside each event.
    ========================================================================== */
 
-const ATTENTION_VISIBLE = 5;
-
-/** The countdown re-renders on this interval. No data is refetched. */
+const ATTENTION_VISIBLE = 3;
 const COUNTDOWN_REFRESH_MS = 60000;
 
 const SEVERITY_STYLE: Record<
   AttentionSeverity,
   { dot: string; label: string }
 > = {
-  high: { dot: "bg-[var(--aurak-danger)]", label: "Urgent" },
-  medium: { dot: "bg-[var(--aurak-warning)]", label: "Soon" },
-  low: { dot: "bg-[var(--aurak-text-subtle)]", label: "Later" },
+  high: {
+    dot: "bg-[var(--aurak-danger)]",
+    label: "Urgent",
+  },
+  medium: {
+    dot: "bg-[var(--aurak-warning)]",
+    label: "Soon",
+  },
+  low: {
+    dot: "bg-[var(--aurak-text-subtle)]",
+    label: "Later",
+  },
 };
 
-const ACTIVITY_ICON: Record<ActivityItem["kind"], React.ReactNode> = {
-  event_created: <CalendarPlus className="h-4 w-4" />,
-  registrations: <Users className="h-4 w-4" />,
-  feedback: <CheckCircle2 className="h-4 w-4" />,
+const ACTIVITY_ICON: Record<
+  ActivityItem["kind"],
+  React.ReactNode
+> = {
+  event_created: (
+    <CalendarPlus className="h-4 w-4" />
+  ),
+  registrations: (
+    <Users className="h-4 w-4" />
+  ),
+  feedback: (
+    <CheckCircle2 className="h-4 w-4" />
+  ),
 };
 
 /* -----------------------------------------------------------------------------
-   Quick actions
+   Quick action
    -------------------------------------------------------------------------- */
 
 function QuickAction({
@@ -84,10 +109,9 @@ function QuickAction({
   label: string;
   description: string;
   icon: React.ReactNode;
-  /** When set, the action renders inert rather than linking nowhere. */
   disabledReason?: string;
 }) {
-  const body = (
+  const content = (
     <>
       <span
         className={cn(
@@ -107,7 +131,8 @@ function QuickAction({
         </span>
 
         <span className="block text-xs text-[var(--aurak-text-muted)]">
-          {disabledReason ?? description}
+          {disabledReason ??
+            description}
         </span>
       </span>
     </>
@@ -119,7 +144,7 @@ function QuickAction({
         className="card flex cursor-not-allowed items-center gap-3 p-4 opacity-60"
         aria-disabled="true"
       >
-        {body}
+        {content}
       </div>
     );
   }
@@ -129,16 +154,20 @@ function QuickAction({
       href={href}
       className="card card-interactive flex items-center gap-3 p-4"
     >
-      {body}
+      {content}
     </Link>
   );
 }
 
 /* -----------------------------------------------------------------------------
-   Compact event row for the today / live section
+   Today / live event
    -------------------------------------------------------------------------- */
 
-function CompactEventRow({ event }: { event: MarketingEvent }) {
+function CompactEventRow({
+  event,
+}: {
+  event: MarketingEvent;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--aurak-radius)] border border-[var(--aurak-line)] bg-white p-3">
       <div className="min-w-0">
@@ -147,13 +176,24 @@ function CompactEventRow({ event }: { event: MarketingEvent }) {
         </p>
 
         <p className="mt-0.5 truncate text-xs text-[var(--aurak-text-muted)]">
-          {formatTimeRange(event.startTime, event.endTime)} ·{" "}
-          {event.location.venueName}, {EMIRATE_LABELS[event.location.emirate]}
+          {formatTimeRange(
+            event.startTime,
+            event.endTime
+          )}{" "}
+          · {event.location.venueName},{" "}
+          {
+            EMIRATE_LABELS[
+              event.location.emirate
+            ]
+          }
         </p>
 
         <p className="mt-0.5 text-xs text-[var(--aurak-text-muted)]">
           {event.assignedStaff.length}{" "}
-          {event.assignedStaff.length === 1 ? "staff member" : "staff assigned"}
+          {event.assignedStaff.length ===
+          1
+            ? "staff member assigned"
+            : "staff assigned"}
         </p>
       </div>
 
@@ -168,11 +208,16 @@ function CompactEventRow({ event }: { event: MarketingEvent }) {
 }
 
 /* -----------------------------------------------------------------------------
-   Attention row
+   Attention item
    -------------------------------------------------------------------------- */
 
-function AttentionRow({ item }: { item: AttentionItem }) {
-  const style = SEVERITY_STYLE[item.severity];
+function AttentionRow({
+  item,
+}: {
+  item: AttentionItem;
+}) {
+  const style =
+    SEVERITY_STYLE[item.severity];
 
   return (
     <li>
@@ -209,7 +254,9 @@ function AttentionRow({ item }: { item: AttentionItem }) {
           aria-hidden
         />
 
-        <span className="sr-only">{style.label}</span>
+        <span className="sr-only">
+          {style.label}
+        </span>
       </Link>
     </li>
   );
@@ -221,15 +268,23 @@ function AttentionRow({ item }: { item: AttentionItem }) {
 
 export default function MarketingAdminDashboardPage() {
   const [summary, setSummary] =
-    useState<MarketingDashboardSummary | null>(null);
+    useState<MarketingDashboardSummary | null>(
+      null
+    );
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [countdown, setCountdown] = useState("");
+  const [countdown, setCountdown] =
+    useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    setSummary(await getDashboardSummary());
+
+    setSummary(
+      await getDashboardSummary()
+    );
+
     setLoading(false);
   }, []);
 
@@ -237,40 +292,52 @@ export default function MarketingAdminDashboardPage() {
     void load();
   }, [load]);
 
-  /* Primitives so the timer restarts only when the target event changes. */
   const nextDate =
-    summary?.nextUpcoming?.date ?? null;
+    summary?.nextUpcoming?.date ??
+    null;
 
   const nextStartTime =
-    summary?.nextUpcoming?.startTime ?? null;
+    summary?.nextUpcoming
+      ?.startTime ?? null;
 
-  /*
-    Recalculates the countdown text once a minute while the page is open.
-    Only this string is updated — no dashboard data is refetched.
-  */
   useEffect(() => {
-    if (!nextDate || !nextStartTime) {
+    if (
+      !nextDate ||
+      !nextStartTime
+    ) {
       setCountdown("");
       return;
     }
 
     const recalculate = () =>
       setCountdown(
-        formatCountdown(nextDate, nextStartTime)
+        formatCountdown(
+          nextDate,
+          nextStartTime
+        )
       );
 
     recalculate();
 
-    const timer = window.setInterval(
-      recalculate,
-      COUNTDOWN_REFRESH_MS
-    );
+    const timer =
+      window.setInterval(
+        recalculate,
+        COUNTDOWN_REFRESH_MS
+      );
 
     return () =>
-      window.clearInterval(timer);
-  }, [nextDate, nextStartTime]);
+      window.clearInterval(
+        timer
+      );
+  }, [
+    nextDate,
+    nextStartTime,
+  ]);
 
-  if (loading || !summary) {
+  if (
+    loading ||
+    !summary
+  ) {
     return (
       <div className="page space-y-6">
         <PageHeader title="Dashboard" />
@@ -278,13 +345,6 @@ export default function MarketingAdminDashboardPage() {
       </div>
     );
   }
-
-  const { reportingEventId } = summary;
-
-  const noReportingTarget =
-    reportingEventId === null
-      ? "No event has registrations yet"
-      : undefined;
 
   const visibleAttention =
     summary.attention.slice(
@@ -296,11 +356,17 @@ export default function MarketingAdminDashboardPage() {
     summary.attention.length -
     visibleAttention.length;
 
+  const noAnalyticsTarget =
+    summary.reportingEventId ===
+    null
+      ? "No event has registrations yet"
+      : undefined;
+
   return (
     <div className="page space-y-6">
       <PageHeader
         title="Dashboard"
-        subtitle="What needs your attention right now."
+        subtitle="Manage your marketing events."
         actions={
           <Link
             href="/marketing/admin/events/new"
@@ -312,120 +378,27 @@ export default function MarketingAdminDashboardPage() {
         }
       />
 
-      {/* ---------- A. Total events ---------- */}
+      {/* Total events */}
       <div className="max-w-[16rem]">
         <StatCard
           label="Total Events"
-          value={summary.totalEvents}
+          value={
+            summary.totalEvents
+          }
           icon={
             <CalendarDays className="h-4 w-4" />
           }
         />
       </div>
 
-      {/* ---------- B. Quick actions ---------- */}
-      <section className="space-y-3">
-        <h2 className="section-title">
-          Quick Actions
-        </h2>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <QuickAction
-            href="/marketing/admin/events/new"
-            label="Create Event"
-            description="Add a new recruitment event"
-            icon={
-              <Plus className="h-4 w-4" />
-            }
-          />
-
-          <QuickAction
-            href="/marketing/admin/events"
-            label="View Events"
-            description="Browse and filter all events"
-            icon={
-              <CalendarDays className="h-4 w-4" />
-            }
-          />
-
-          <QuickAction
-            href={`/marketing/admin/events/${reportingEventId}?tab=analytics`}
-            label="View Reports"
-            description="Open analytics for the latest event with registrations"
-            icon={
-              <BarChart3 className="h-4 w-4" />
-            }
-            disabledReason={
-              noReportingTarget
-            }
-          />
-
-          <QuickAction
-            href={`/marketing/admin/events/${reportingEventId}?tab=crm`}
-            label="Open CRM"
-            description="Open CRM for the latest event with registrations"
-            icon={
-              <UserSquare className="h-4 w-4" />
-            }
-            disabledReason={
-              noReportingTarget
-            }
-          />
-        </div>
-      </section>
-
-      {/* ---------- C. Needs attention ---------- */}
-      <section className="space-y-3">
-        <h2 className="section-title flex items-center gap-2">
-          <AlertTriangle
-            className="h-4 w-4 text-[var(--aurak-warning)]"
-            aria-hidden
-          />
-          Needs Attention
-        </h2>
-
-        <Card>
-          <CardBody>
-            {summary.attention.length === 0 ? (
-              <p className="meta-text">
-                No items need attention.
-              </p>
-            ) : (
-              <>
-                <ul className="divide-y divide-[var(--aurak-line)]">
-                  {visibleAttention.map(
-                    (item) => (
-                      <AttentionRow
-                        key={item.id}
-                        item={item}
-                      />
-                    )
-                  )}
-                </ul>
-
-                {hiddenAttention > 0 && (
-                  <p className="field-hint mt-3">
-                    {hiddenAttention} more{" "}
-                    {hiddenAttention === 1
-                      ? "item"
-                      : "items"}{" "}
-                    need attention. Open an event
-                    to review it.
-                  </p>
-                )}
-              </>
-            )}
-          </CardBody>
-        </Card>
-      </section>
-
-      {/* ---------- D. Next upcoming event ---------- */}
+      {/* Next upcoming event */}
       <section className="space-y-3">
         <h2 className="section-title">
           Next Upcoming Event
         </h2>
 
-        {summary.nextUpcoming === null ? (
+        {summary.nextUpcoming ===
+        null ? (
           <Card>
             <EmptyState
               icon={
@@ -445,27 +418,16 @@ export default function MarketingAdminDashboardPage() {
           </Card>
         ) : (
           <Card>
-            <CardBody className="space-y-3">
+            <CardBody className="space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-base font-semibold text-[var(--aurak-navy)]">
                     {
-                      summary.nextUpcoming
+                      summary
+                        .nextUpcoming
                         .name
                     }
                   </h3>
-
-                  <Badge
-                    variant="brand"
-                    className="mt-1.5"
-                  >
-                    {
-                      MARKETING_EVENT_TYPE_LABELS[
-                        summary
-                          .nextUpcoming.type
-                      ]
-                    }
-                  </Badge>
                 </div>
 
                 {countdown !== "" && (
@@ -488,12 +450,14 @@ export default function MarketingAdminDashboardPage() {
 
                   <span className="truncate">
                     {formatEventDate(
-                      summary.nextUpcoming
+                      summary
+                        .nextUpcoming
                         .date
                     )}{" "}
-                    · starts{" "}
+                    ·{" "}
                     {formatTime(
-                      summary.nextUpcoming
+                      summary
+                        .nextUpcoming
                         .startTime
                     )}
                   </span>
@@ -507,15 +471,18 @@ export default function MarketingAdminDashboardPage() {
 
                   <span className="truncate">
                     {
-                      summary.nextUpcoming
-                        .location.venueName
+                      summary
+                        .nextUpcoming
+                        .location
+                        .venueName
                     }
                     ,{" "}
                     {
                       EMIRATE_LABELS[
                         summary
                           .nextUpcoming
-                          .location.emirate
+                          .location
+                          .emirate
                       ]
                     }
                   </span>
@@ -529,7 +496,8 @@ export default function MarketingAdminDashboardPage() {
 
                   <span>
                     {
-                      summary.nextUpcoming
+                      summary
+                        .nextUpcoming
                         .assignedStaff
                         .length
                     }{" "}
@@ -554,8 +522,101 @@ export default function MarketingAdminDashboardPage() {
         )}
       </section>
 
-      {/* ---------- E. Today / live ---------- */}
-      {summary.todayOrLive.length > 0 && (
+      {/* Needs attention */}
+      <section className="space-y-3">
+        <h2 className="section-title flex items-center gap-2">
+          <AlertTriangle
+            className="h-4 w-4 text-[var(--aurak-warning)]"
+            aria-hidden
+          />
+          Needs Attention
+        </h2>
+
+        <Card>
+          <CardBody>
+            {summary.attention
+              .length === 0 ? (
+              <p className="meta-text">
+                No items need
+                attention.
+              </p>
+            ) : (
+              <>
+                <ul className="divide-y divide-[var(--aurak-line)]">
+                  {visibleAttention.map(
+                    (item) => (
+                      <AttentionRow
+                        key={
+                          item.id
+                        }
+                        item={
+                          item
+                        }
+                      />
+                    )
+                  )}
+                </ul>
+
+                {hiddenAttention >
+                  0 && (
+                  <div className="mt-3 border-t border-[var(--aurak-line)] pt-3">
+                    <Link
+                      href="/marketing/admin/events"
+                      className="link inline-flex items-center gap-1 text-sm"
+                    >
+                      View all events
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                )}
+              </>
+            )}
+          </CardBody>
+        </Card>
+      </section>
+
+      {/* Quick actions */}
+      <section className="space-y-3">
+        <h2 className="section-title">
+          Quick Actions
+        </h2>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <QuickAction
+            href="/marketing/admin/events/new"
+            label="Create Event"
+            description="Add a new marketing event"
+            icon={
+              <Plus className="h-4 w-4" />
+            }
+          />
+
+          <QuickAction
+            href="/marketing/admin/events"
+            label="View Events"
+            description="Browse and manage events"
+            icon={
+              <CalendarDays className="h-4 w-4" />
+            }
+          />
+
+          <QuickAction
+            href={`/marketing/admin/events/${summary.reportingEventId}?tab=analytics`}
+            label="Analytics"
+            description="View event performance"
+            icon={
+              <BarChart3 className="h-4 w-4" />
+            }
+            disabledReason={
+              noAnalyticsTarget
+            }
+          />
+        </div>
+      </section>
+
+      {/* Today / live - hidden when empty */}
+      {summary.todayOrLive
+        .length > 0 && (
         <section className="space-y-3">
           <h2 className="section-title flex items-center gap-2">
             <Radio
@@ -578,7 +639,7 @@ export default function MarketingAdminDashboardPage() {
         </section>
       )}
 
-      {/* ---------- F. Recent activity ---------- */}
+      {/* Recent activity */}
       <section className="space-y-3">
         <h2 className="section-title">
           Recent Activity
@@ -586,7 +647,8 @@ export default function MarketingAdminDashboardPage() {
 
         <Card>
           <CardBody>
-            {summary.recentActivity
+            {summary
+              .recentActivity
               .length === 0 ? (
               <p className="meta-text">
                 No activity yet.
@@ -595,9 +657,13 @@ export default function MarketingAdminDashboardPage() {
               <ul className="divide-y divide-[var(--aurak-line)]">
                 {summary.recentActivity.map(
                   (item) => (
-                    <li key={item.id}>
+                    <li
+                      key={item.id}
+                    >
                       <Link
-                        href={item.href}
+                        href={
+                          item.href
+                        }
                         className="flex items-center gap-3 rounded-[var(--aurak-radius)] px-2 py-2.5 transition-colors hover:bg-[var(--aurak-bg-subtle)]"
                       >
                         <span
@@ -606,18 +672,23 @@ export default function MarketingAdminDashboardPage() {
                         >
                           {
                             ACTIVITY_ICON[
-                              item.kind
+                              item
+                                .kind
                             ]
                           }
                         </span>
 
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-[var(--aurak-navy)]">
-                            {item.title}
+                            {
+                              item.title
+                            }
                           </span>
 
                           <span className="block truncate text-xs text-[var(--aurak-text-muted)]">
-                            {item.detail}
+                            {
+                              item.detail
+                            }
                           </span>
                         </span>
 
@@ -636,7 +707,7 @@ export default function MarketingAdminDashboardPage() {
         </Card>
       </section>
 
-      {/* Prototype utility */}
+      {/* Prototype tools */}
       <div className="pt-2">
         <div className="divider mb-4" />
 

@@ -11,26 +11,22 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { StaffAssignmentPicker } from "@/components/marketing/StaffAssignmentPicker";
-import {
-  EMIRATE_OPTIONS,
-  MARKETING_EVENT_TYPE_OPTIONS,
-} from "@/lib/data/marketing-reference";
+import { EMIRATE_OPTIONS } from "@/lib/data/marketing-reference";
 import { todayISO } from "@/lib/utils/dates";
 
 /* =============================================================================
-   Marketing event create / edit form.
+   MARKETING EVENT FORM
 
-   MARKETING ONLY. Campus concepts — target audience, hosting department,
-   building/room — are deliberately absent, just as staff assignment, departure
-   time, map links and driver details never appear on the Campus form.
+   The admin chooses an Event Name only.
 
-   EVENT NAME is chosen from a preset list to keep naming consistent, with an
-   "Other" option for anything bespoke. The presets are LOCAL UI STATE only:
-   MarketingEvent.name remains a plain string and the separate Event Type model
-   (MarketingEventType) is untouched.
+   The old Event Type selector has been removed from the interface because it
+   repeated the same information as Event Name.
+
+   The existing MarketingEvent.type field is kept internally for compatibility
+   with the current mock data/services. It is derived automatically whenever
+   the selected event name changes.
    ========================================================================== */
 
-/** Preset event names. Not the same list as MarketingEventType. */
 const NAME_PRESETS = [
   "Open Day",
   "School Visit",
@@ -42,12 +38,46 @@ const NAME_PRESETS = [
 const OTHER_NAME = "Other";
 
 const NAME_OPTIONS = [
-  ...NAME_PRESETS.map((preset) => ({ value: preset, label: preset })),
-  { value: OTHER_NAME, label: "Other (type a custom name)" },
+  ...NAME_PRESETS.map((preset) => ({
+    value: preset,
+    label: preset,
+  })),
+  {
+    value: OTHER_NAME,
+    label: "Other",
+  },
 ];
 
 function isPresetName(name: string): boolean {
   return (NAME_PRESETS as readonly string[]).includes(name);
+}
+
+/**
+ * Keeps the existing type field valid internally without exposing it
+ * to the Marketing Admin.
+ */
+function typeFromEventName(name: string): MarketingEventType {
+  switch (name) {
+    case "Open Day":
+      return "open_day";
+
+    case "School Visit":
+      return "school_visit";
+
+    case "Exhibition":
+      return "exhibition";
+
+    case "Information Session":
+      return "information_session";
+
+    /*
+      School Campaign does not have an exact equivalent in the existing
+      MarketingEventType model, so it safely uses "other".
+    */
+    case "School Campaign":
+    default:
+      return "other";
+  }
 }
 
 interface NameSelection {
@@ -56,28 +86,35 @@ interface NameSelection {
 }
 
 /**
- * Splits a stored name into the selector value and the custom text field.
- *   "Open Day"          -> preset "Open Day", custom ""
- *   "Najah Exhibition"  -> preset "Other",    custom "Najah Exhibition"
- *   ""                  -> nothing selected
+ * Existing preset names remain selected when editing.
+ * Existing custom event names appear under Other.
  */
 function deriveNameSelection(name: string): NameSelection {
   const trimmed = name.trim();
 
   if (!trimmed) {
-    return { preset: "", customName: "" };
+    return {
+      preset: "",
+      customName: "",
+    };
   }
 
   if (isPresetName(trimmed)) {
-    return { preset: trimmed, customName: "" };
+    return {
+      preset: trimmed,
+      customName: "",
+    };
   }
 
-  return { preset: OTHER_NAME, customName: trimmed };
+  return {
+    preset: OTHER_NAME,
+    customName: trimmed,
+  };
 }
 
 export const EMPTY_MARKETING_EVENT: MarketingEventInput = {
   name: "",
-  type: "open_day",
+  type: "other",
   date: "",
   startTime: "",
   endTime: "",
@@ -97,7 +134,6 @@ export const EMPTY_MARKETING_EVENT: MarketingEventInput = {
 
 export interface MarketingFormErrors {
   name?: string;
-  type?: string;
   date?: string;
   startTime?: string;
   endTime?: string;
@@ -114,7 +150,9 @@ function looksLikeUrl(value: string): boolean {
 
 export function validateMarketingEvent(
   value: MarketingEventInput,
-  options: { requireFutureDate: boolean }
+  options: {
+    requireFutureDate: boolean;
+  }
 ): MarketingFormErrors {
   const errors: MarketingFormErrors = {};
 
@@ -124,13 +162,12 @@ export function validateMarketingEvent(
     errors.name = "Event name must be at least 3 characters.";
   }
 
-  if (!value.type) {
-    errors.type = "Event type is required.";
-  }
-
   if (!value.date) {
     errors.date = "Date is required.";
-  } else if (options.requireFutureDate && value.date < todayISO()) {
+  } else if (
+    options.requireFutureDate &&
+    value.date < todayISO()
+  ) {
     errors.date = "The date cannot be in the past.";
   }
 
@@ -147,16 +184,17 @@ export function validateMarketingEvent(
     value.endTime &&
     value.endTime <= value.startTime
   ) {
-    errors.endTime = "End time must be after the start time.";
+    errors.endTime =
+      "End time must be after the start time.";
   }
 
-  /* Departure is optional, but if given it must be before the event starts. */
   if (
     value.departureTime &&
     value.startTime &&
     value.departureTime >= value.startTime
   ) {
-    errors.departureTime = "Departure should be before the start time.";
+    errors.departureTime =
+      "Departure should be before the start time.";
   }
 
   if (!value.location.emirate) {
@@ -164,21 +202,27 @@ export function validateMarketingEvent(
   }
 
   if (!value.location.venueName.trim()) {
-    errors.venueName = "Venue or school name is required.";
+    errors.venueName =
+      "Venue or school name is required.";
   }
 
-  const mapUrl = value.location.mapUrl?.trim();
+  const mapUrl =
+    value.location.mapUrl?.trim();
 
   if (mapUrl && !looksLikeUrl(mapUrl)) {
-    errors.mapUrl = "Enter a full link starting with http:// or https://";
+    errors.mapUrl =
+      "Enter a full link starting with http:// or https://";
   }
 
-  /* A driver name without a phone number is not useful to staff on the road. */
-  const driverName = value.driver?.name.trim() ?? "";
-  const driverPhone = value.driver?.phone.trim() ?? "";
+  const driverName =
+    value.driver?.name.trim() ?? "";
+
+  const driverPhone =
+    value.driver?.phone.trim() ?? "";
 
   if (driverName && !driverPhone) {
-    errors.driverPhone = "Add a phone number so staff can reach the driver.";
+    errors.driverPhone =
+      "Add a phone number so staff can reach the driver.";
   }
 
   return errors;
@@ -193,12 +237,16 @@ export function MarketingEventForm({
   initialValue: MarketingEventInput;
   submitLabel: string;
   requireFutureDate: boolean;
-  onSubmit: (value: MarketingEventInput) => Promise<void>;
+  onSubmit: (
+    value: MarketingEventInput
+  ) => Promise<void>;
 }) {
   const router = useRouter();
 
   const [value, setValue] =
-    useState<MarketingEventInput>(initialValue);
+    useState<MarketingEventInput>(
+      initialValue
+    );
 
   const [errors, setErrors] =
     useState<MarketingFormErrors>({});
@@ -206,21 +254,25 @@ export function MarketingEventForm({
   const [submitting, setSubmitting] =
     useState(false);
 
-  /* Name selector state, seeded once from the stored name when editing. */
   const [nameSelection, setNameSelection] =
     useState<NameSelection>(() =>
-      deriveNameSelection(initialValue.name)
+      deriveNameSelection(
+        initialValue.name
+      )
     );
 
-  function update(patch: Partial<MarketingEventInput>) {
+  function update(
+    patch: Partial<MarketingEventInput>
+  ) {
     setValue((current) => ({
       ...current,
       ...patch,
     }));
   }
 
-  /* value.name stays the single source of truth for validation and submit. */
-  function handlePresetChange(nextPreset: string) {
+  function handlePresetChange(
+    nextPreset: string
+  ) {
     if (nextPreset === OTHER_NAME) {
       setNameSelection((current) => ({
         preset: OTHER_NAME,
@@ -229,6 +281,7 @@ export function MarketingEventForm({
 
       update({
         name: nameSelection.customName,
+        type: "other",
       });
 
       return;
@@ -241,10 +294,15 @@ export function MarketingEventForm({
 
     update({
       name: nextPreset,
+      type: typeFromEventName(
+        nextPreset
+      ),
     });
   }
 
-  function handleCustomNameChange(nextName: string) {
+  function handleCustomNameChange(
+    nextName: string
+  ) {
     setNameSelection({
       preset: OTHER_NAME,
       customName: nextName,
@@ -252,6 +310,7 @@ export function MarketingEventForm({
 
     update({
       name: nextName,
+      type: "other",
     });
   }
 
@@ -260,24 +319,28 @@ export function MarketingEventForm({
   ) {
     event.preventDefault();
 
-    const nextErrors = validateMarketingEvent(
-      value,
-      { requireFutureDate }
-    );
+    const nextErrors =
+      validateMarketingEvent(value, {
+        requireFutureDate,
+      });
 
-    /* Name-selector specific messages, replacing the generic one. */
     if (!nameSelection.preset) {
-      nextErrors.name = "Please select an event name.";
+      nextErrors.name =
+        "Please select an event name.";
     } else if (
-      nameSelection.preset === OTHER_NAME &&
+      nameSelection.preset ===
+        OTHER_NAME &&
       !nameSelection.customName.trim()
     ) {
-      nextErrors.name = "Enter a custom event name.";
+      nextErrors.name =
+        "Enter a custom event name.";
     }
 
     setErrors(nextErrors);
 
-    if (Object.keys(nextErrors).length > 0) {
+    if (
+      Object.keys(nextErrors).length > 0
+    ) {
       document
         .querySelector<HTMLElement>(
           '[aria-invalid="true"]'
@@ -308,73 +371,60 @@ export function MarketingEventForm({
       noValidate
       className="space-y-5"
     >
-      {/* ---------- Event details ---------- */}
+      {/* Event details */}
       <Card>
         <CardHeader title="Event details" />
 
         <CardBody className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Event Name"
+            required
+            error={errors.name}
+            htmlFor="namePreset"
+          >
+            <Select
+              id="namePreset"
+              options={NAME_OPTIONS}
+              placeholder="Select an event name"
+              value={
+                nameSelection.preset
+              }
+              invalid={Boolean(
+                errors.name
+              )}
+              onChange={(event) =>
+                handlePresetChange(
+                  event.target.value
+                )
+              }
+            />
+          </Field>
+
+          {usingCustomName && (
             <Field
-              label="Event Name"
+              label="Custom Event Name"
               required
               error={errors.name}
-              htmlFor="namePreset"
+              hint="Shown everywhere this event appears."
+              htmlFor="customName"
             >
-              <Select
-                id="namePreset"
-                options={NAME_OPTIONS}
-                placeholder="Select an event name"
-                value={nameSelection.preset}
-                invalid={Boolean(errors.name)}
-                onChange={(event) =>
-                  handlePresetChange(event.target.value)
+              <Input
+                id="customName"
+                value={
+                  nameSelection.customName
                 }
+                invalid={Boolean(
+                  errors.name
+                )}
+                onChange={(event) =>
+                  handleCustomNameChange(
+                    event.target.value
+                  )
+                }
+                placeholder="Enter event name"
               />
             </Field>
-
-            <Field
-              label="Event Type"
-              required
-              error={errors.type}
-              htmlFor="type"
-            >
-              <Select
-                id="type"
-                options={MARKETING_EVENT_TYPE_OPTIONS}
-                value={value.type}
-                invalid={Boolean(errors.type)}
-                onChange={(event) =>
-                  update({
-                    type: event.target
-                      .value as MarketingEventType,
-                  })
-                }
-              />
-            </Field>
-
-            {usingCustomName && (
-              <Field
-                label="Custom Event Name"
-                required
-                error={errors.name}
-                hint="Shown everywhere this event appears."
-                htmlFor="customName"
-                className="sm:col-span-2"
-              >
-                <Input
-                  id="customName"
-                  value={nameSelection.customName}
-                  invalid={Boolean(errors.name)}
-                  onChange={(event) =>
-                    handleCustomNameChange(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Najah Education Exhibition — Sharjah"
-                />
-              </Field>
-            )}
-          </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-4">
             <Field
@@ -387,7 +437,9 @@ export function MarketingEventForm({
                 id="date"
                 type="date"
                 value={value.date}
-                invalid={Boolean(errors.date)}
+                invalid={Boolean(
+                  errors.date
+                )}
                 onChange={(event) =>
                   update({
                     date: event.target.value,
@@ -406,10 +458,13 @@ export function MarketingEventForm({
                 id="startTime"
                 type="time"
                 value={value.startTime}
-                invalid={Boolean(errors.startTime)}
+                invalid={Boolean(
+                  errors.startTime
+                )}
                 onChange={(event) =>
                   update({
-                    startTime: event.target.value,
+                    startTime:
+                      event.target.value,
                   })
                 }
               />
@@ -425,10 +480,13 @@ export function MarketingEventForm({
                 id="endTime"
                 type="time"
                 value={value.endTime}
-                invalid={Boolean(errors.endTime)}
+                invalid={Boolean(
+                  errors.endTime
+                )}
                 onChange={(event) =>
                   update({
-                    endTime: event.target.value,
+                    endTime:
+                      event.target.value,
                   })
                 }
               />
@@ -436,14 +494,19 @@ export function MarketingEventForm({
 
             <Field
               label="Departure Time"
-              error={errors.departureTime}
+              error={
+                errors.departureTime
+              }
               hint="Optional. When the team leaves campus."
               htmlFor="departureTime"
             >
               <Input
                 id="departureTime"
                 type="time"
-                value={value.departureTime ?? ""}
+                value={
+                  value.departureTime ??
+                  ""
+                }
                 invalid={Boolean(
                   errors.departureTime
                 )}
@@ -464,19 +527,22 @@ export function MarketingEventForm({
           >
             <Textarea
               id="description"
-              value={value.description ?? ""}
+              value={
+                value.description ?? ""
+              }
               onChange={(event) =>
                 update({
-                  description: event.target.value,
+                  description:
+                    event.target.value,
                 })
               }
-              placeholder="What happens at this event, and who is it aimed at?"
+              placeholder="What happens at this event?"
             />
           </Field>
         </CardBody>
       </Card>
 
-      {/* ---------- Location ---------- */}
+      {/* Location */}
       <Card>
         <CardHeader title="Location" />
 
@@ -491,8 +557,12 @@ export function MarketingEventForm({
               <Select
                 id="emirate"
                 options={EMIRATE_OPTIONS}
-                value={value.location.emirate}
-                invalid={Boolean(errors.emirate)}
+                value={
+                  value.location.emirate
+                }
+                invalid={Boolean(
+                  errors.emirate
+                )}
                 onChange={(event) =>
                   update({
                     location: {
@@ -509,12 +579,17 @@ export function MarketingEventForm({
             <Field
               label="Venue / School"
               required
-              error={errors.venueName}
+              error={
+                errors.venueName
+              }
               htmlFor="venueName"
             >
               <Input
                 id="venueName"
-                value={value.location.venueName}
+                value={
+                  value.location
+                    .venueName
+                }
                 invalid={Boolean(
                   errors.venueName
                 )}
@@ -523,7 +598,8 @@ export function MarketingEventForm({
                     location: {
                       ...value.location,
                       venueName:
-                        event.target.value,
+                        event.target
+                          .value,
                     },
                   })
                 }
@@ -535,20 +611,26 @@ export function MarketingEventForm({
           <Field
             label="Location Link"
             error={errors.mapUrl}
-            hint="Optional. Paste a Google Maps link — staff will see an Open Map button."
+            hint="Optional. Paste a Google Maps link."
             htmlFor="mapUrl"
           >
             <Input
               id="mapUrl"
               type="url"
               inputMode="url"
-              value={value.location.mapUrl ?? ""}
-              invalid={Boolean(errors.mapUrl)}
+              value={
+                value.location.mapUrl ??
+                ""
+              }
+              invalid={Boolean(
+                errors.mapUrl
+              )}
               onChange={(event) =>
                 update({
                   location: {
                     ...value.location,
-                    mapUrl: event.target.value,
+                    mapUrl:
+                      event.target.value,
                   },
                 })
               }
@@ -558,29 +640,34 @@ export function MarketingEventForm({
         </CardBody>
       </Card>
 
-      {/* ---------- Team ---------- */}
+      {/* Team */}
       <Card>
         <CardHeader title="Assign staff" />
 
         <CardBody>
           <StaffAssignmentPicker
-            selected={value.assignedStaffIds}
-            onChange={(assignedStaffIds) =>
-              update({ assignedStaffIds })
+            selected={
+              value.assignedStaffIds
+            }
+            onChange={(
+              assignedStaffIds
+            ) =>
+              update({
+                assignedStaffIds,
+              })
             }
           />
         </CardBody>
       </Card>
 
-      {/* ---------- Driver ---------- */}
+      {/* Driver */}
       <Card>
         <CardHeader title="Driver details" />
 
         <CardBody className="space-y-4">
           <p className="meta-text">
-            Optional. Visible to assigned staff on their
-            event screen. Add both a name and a phone
-            number so the team can reach them.
+            Optional. Visible to assigned
+            staff on their event screen.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -590,13 +677,19 @@ export function MarketingEventForm({
             >
               <Input
                 id="driverName"
-                value={value.driver?.name ?? ""}
+                value={
+                  value.driver?.name ??
+                  ""
+                }
                 onChange={(event) =>
                   update({
                     driver: {
-                      name: event.target.value,
+                      name:
+                        event.target
+                          .value,
                       phone:
-                        value.driver?.phone ?? "",
+                        value.driver
+                          ?.phone ?? "",
                     },
                   })
                 }
@@ -606,14 +699,19 @@ export function MarketingEventForm({
 
             <Field
               label="Driver Phone"
-              error={errors.driverPhone}
+              error={
+                errors.driverPhone
+              }
               htmlFor="driverPhone"
             >
               <Input
                 id="driverPhone"
                 type="tel"
                 inputMode="tel"
-                value={value.driver?.phone ?? ""}
+                value={
+                  value.driver?.phone ??
+                  ""
+                }
                 invalid={Boolean(
                   errors.driverPhone
                 )}
@@ -621,8 +719,11 @@ export function MarketingEventForm({
                   update({
                     driver: {
                       name:
-                        value.driver?.name ?? "",
-                      phone: event.target.value,
+                        value.driver
+                          ?.name ?? "",
+                      phone:
+                        event.target
+                          .value,
                     },
                   })
                 }
@@ -633,12 +734,14 @@ export function MarketingEventForm({
         </CardBody>
       </Card>
 
-      {/* ---------- Actions ---------- */}
+      {/* Actions */}
       <div className="safe-bottom sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-[var(--aurak-line)] bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:flex-row sm:justify-end sm:rounded-[var(--aurak-radius-lg)] sm:border sm:px-4">
         <Button
           type="button"
           variant="secondary"
-          onClick={() => router.back()}
+          onClick={() =>
+            router.back()
+          }
           disabled={submitting}
         >
           Cancel
