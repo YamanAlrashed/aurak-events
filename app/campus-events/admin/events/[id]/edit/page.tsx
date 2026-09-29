@@ -53,6 +53,17 @@ function toInput(
     hostingDepartmentId:
       event.hostingDepartmentId,
 
+    pointOfContact: {
+      name:
+        event.pointOfContact?.name ?? "",
+
+      email:
+        event.pointOfContact?.email ?? "",
+
+      phone:
+        event.pointOfContact?.phone ?? "",
+    },
+
     targetAudience: {
       userTypes: [
         ...event.targetAudience.userTypes,

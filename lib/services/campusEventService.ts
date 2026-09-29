@@ -141,6 +141,7 @@ export interface CampusDashboardData {
   thisWeek: CampusEvent[];
   live: CampusEvent[];
   recentlyCompleted: CampusEvent[];
+
   counts: {
     upcoming: number;
     thisWeek: number;
@@ -295,12 +296,6 @@ export async function createEvent(
         input.location.room
           ?.trim() ||
         undefined,
-
-      locationName:
-        input.location
-          .locationName
-          ?.trim() ||
-        undefined,
     },
 
     hostingDepartmentId:
@@ -310,6 +305,23 @@ export async function createEvent(
       getHostingDepartment(
         input.hostingDepartmentId
       )?.name ?? "Other",
+
+    pointOfContact: {
+      name:
+        input.pointOfContact.name
+          ?.trim() ||
+        undefined,
+
+      email:
+        input.pointOfContact.email
+          ?.trim() ||
+        undefined,
+
+      phone:
+        input.pointOfContact.phone
+          ?.trim() ||
+        undefined,
+    },
 
     targetAudience:
       input.targetAudience,
@@ -416,12 +428,6 @@ export async function updateEvent(
           input.location.room
             ?.trim() ||
           undefined,
-
-        locationName:
-          input.location
-            .locationName
-            ?.trim() ||
-          undefined,
       };
 
       event.hostingDepartmentId =
@@ -431,6 +437,23 @@ export async function updateEvent(
         getHostingDepartment(
           input.hostingDepartmentId
         )?.name ?? "Other";
+
+      event.pointOfContact = {
+        name:
+          input.pointOfContact.name
+            ?.trim() ||
+          undefined,
+
+        email:
+          input.pointOfContact.email
+            ?.trim() ||
+          undefined,
+
+        phone:
+          input.pointOfContact.phone
+            ?.trim() ||
+          undefined,
+      };
 
       event.targetAudience =
         input.targetAudience;

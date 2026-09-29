@@ -13,9 +13,6 @@ import {
 import {
   CAMPUS_USER_TYPE_OPTIONS,
   COLLEGES,
-  departmentOptions,
-  getCollege,
-  programOptions,
 } from "@/lib/data/campus-reference";
 import { countAudience } from "@/lib/services/notificationService";
 import {
@@ -23,6 +20,12 @@ import {
   formatNumber,
 } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+
+const SELECTABLE_SCHOOL_IDS = [
+  "college-engineering",
+  "college-business",
+  "college-arts-sciences",
+] as const;
 
 export function TargetAudiencePicker({
   value,
@@ -33,52 +36,18 @@ export function TargetAudiencePicker({
   onChange: (audience: TargetAudience) => void;
   error?: string;
 }) {
-  const departmentGroups: MultiSelectGroup[] = useMemo(() => {
-    const options = departmentOptions(value.collegeIds);
-
-    if (value.collegeIds.length === 0) {
-      return [
-        {
-          id: "all",
-          label: "All departments",
-          options,
-        },
-      ];
-    }
-
-    return value.collegeIds.map((collegeId) => ({
-      id: collegeId,
-      label: getCollege(collegeId)?.shortName ?? "College",
-      options: options.filter(
-        (option) =>
-          option.description === getCollege(collegeId)?.shortName
-      ),
-    }));
-  }, [value.collegeIds]);
-
-  const programGroups: MultiSelectGroup[] = useMemo(
+  const schoolGroups: MultiSelectGroup[] = useMemo(
     () => [
       {
-        id: "programs",
-        label:
-          value.departmentIds.length > 0
-            ? "Programs in selected departments"
-            : "All programs",
-        options: programOptions(value.departmentIds),
-      },
-    ],
-    [value.departmentIds]
-  );
-
-  const collegeGroups: MultiSelectGroup[] = useMemo(
-    () => [
-      {
-        id: "colleges",
-        label: "Colleges",
-        options: COLLEGES.map((college) => ({
+        id: "academic-schools",
+        label: "Academic Schools",
+        options: COLLEGES.filter((college) =>
+          SELECTABLE_SCHOOL_IDS.includes(
+            college.id as (typeof SELECTABLE_SCHOOL_IDS)[number]
+          )
+        ).map((college) => ({
           value: college.id,
-          label: college.shortName,
-          description: college.name,
+          label: college.name,
         })),
       },
     ],
@@ -104,11 +73,18 @@ export function TargetAudiencePicker({
   return (
     <div className="space-y-5">
       <div className="alert alert-info">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <Info
+          className="mt-0.5 h-4 w-4 shrink-0"
+          aria-hidden
+        />
+
         <span>
           Target audience controls{" "}
-          <strong>who receives the notification</strong>. Every published
-          event stays visible to all internal AURAK users.
+          <strong>
+            who receives the notification
+          </strong>
+          . Every published event stays visible to all
+          internal AURAK users.
         </span>
       </div>
 
@@ -119,17 +95,22 @@ export function TargetAudiencePicker({
 
         <div className="flex flex-wrap gap-2">
           {CAMPUS_USER_TYPE_OPTIONS.map((option) => {
-            const selected = value.userTypes.includes(option.value);
+            const selected =
+              value.userTypes.includes(option.value);
 
             return (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => toggleUserType(option.value)}
+                onClick={() =>
+                  toggleUserType(option.value)
+                }
                 aria-pressed={selected}
                 className={cn(
                   "btn btn-sm",
-                  selected ? "btn-primary" : "btn-secondary"
+                  selected
+                    ? "btn-primary"
+                    : "btn-secondary"
                 )}
               >
                 {option.label}
@@ -138,75 +119,38 @@ export function TargetAudiencePicker({
           })}
         </div>
 
-        {error && <p className="field-error">{error}</p>}
+        {error && (
+          <p className="field-error">{error}</p>
+        )}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <div>
-          <p className="label">Colleges</p>
-          <p className="field-hint mb-2 mt-0">
-            Leave empty to notify all colleges.
-          </p>
+      <div>
+        <p className="label">Academic Schools</p>
 
-          <MultiSelect
-            groups={collegeGroups}
-            selected={value.collegeIds}
-            onChange={(collegeIds) =>
-              onChange({
-                ...value,
-                collegeIds,
-                departmentIds: [],
-                programIds: [],
-              })
-            }
-            searchable={false}
-            emptyLabel="All colleges."
-            maxHeightClass="max-h-48"
-          />
-        </div>
+        <p className="field-hint mb-2 mt-0">
+          Select one or more schools. Leave empty to
+          notify all selected user types.
+        </p>
 
-        <div>
-          <p className="label">Departments</p>
-          <p className="field-hint mb-2 mt-0">
-            Leave empty to notify all departments.
-          </p>
-
-          <MultiSelect
-            groups={departmentGroups}
-            selected={value.departmentIds}
-            onChange={(departmentIds) =>
-              onChange({
-                ...value,
-                departmentIds,
-                programIds: [],
-              })
-            }
-            searchPlaceholder="Search departments…"
-            emptyLabel="All departments."
-            maxHeightClass="max-h-48"
-          />
-        </div>
-
-        <div>
-          <p className="label">Programs</p>
-          <p className="field-hint mb-2 mt-0">
-            Leave empty to notify all programs.
-          </p>
-
-          <MultiSelect
-            groups={programGroups}
-            selected={value.programIds}
-            onChange={(programIds) =>
-              onChange({
-                ...value,
-                programIds,
-              })
-            }
-            searchPlaceholder="Search programs…"
-            emptyLabel="All programs."
-            maxHeightClass="max-h-48"
-          />
-        </div>
+        <MultiSelect
+          groups={schoolGroups}
+          selected={value.collegeIds.filter((id) =>
+            SELECTABLE_SCHOOL_IDS.includes(
+              id as (typeof SELECTABLE_SCHOOL_IDS)[number]
+            )
+          )}
+          onChange={(collegeIds) =>
+            onChange({
+              ...value,
+              collegeIds,
+              departmentIds: [],
+              programIds: [],
+            })
+          }
+          searchable={false}
+          emptyLabel="All academic schools."
+          maxHeightClass="max-h-48"
+        />
       </div>
 
       <div className="rounded-[var(--aurak-radius)] border border-[var(--aurak-brand-border)] bg-[var(--aurak-brand-soft)] px-4 py-3">
@@ -223,7 +167,8 @@ export function TargetAudiencePicker({
           <span className="tabular font-medium text-[var(--aurak-navy)]">
             {formatNumber(recipientCount)}
           </span>{" "}
-          people in the directory. Everyone else can still see the event.
+          people in the directory. Everyone else can
+          still see the event.
         </p>
       </div>
     </div>

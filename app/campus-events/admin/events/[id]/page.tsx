@@ -52,7 +52,7 @@ import { getBreakdown } from "@/lib/services/campusRsvpService";
 import { getAttendedCount } from "@/lib/services/campusAttendanceService";
 import { getPhotoCounts } from "@/lib/services/galleryService";
 import { useToast } from "@/lib/context/ToastContext";
-import { formatCampusLocation } from "@/lib/data/campus-reference";
+import { getBuilding } from "@/lib/data/campus-reference";
 import {
   describeTargetAudience,
   formatNumber,
@@ -412,11 +412,17 @@ export default function CampusAdminEventDetailPage() {
                 },
                 {
                   label:
-                    "Location",
-                  value:
-                    formatCampusLocation(
-                      event.location
-                    ),
+                  "location",
+                  value: [
+                    getBuilding(
+                      event.location.buildingId
+                    )?.name ??
+                      event.location.buildingName,
+
+                      event.location.room,
+                  ]
+                      .filter(Boolean)
+                      .join(" . "),
                 },
                 {
                   label:
@@ -424,6 +430,64 @@ export default function CampusAdminEventDetailPage() {
                   value:
                     event.hostingDepartmentName,
                 },
+                ...(event.pointOfContact?.name ||
+event.pointOfContact?.email ||
+event.pointOfContact?.phone
+  ? [
+      {
+        label:
+          "Point of Contact",
+
+        value: (
+          <div className="space-y-1">
+            {event.pointOfContact
+              ?.name && (
+              <div>
+                {
+                  event.pointOfContact
+                    .name
+                }
+              </div>
+            )}
+
+            {event.pointOfContact
+              ?.email && (
+              <div>
+                <a
+                  href={`mailto:${event.pointOfContact.email}`}
+                  className="text-[var(--aurak-brand)] hover:underline"
+                >
+                  {
+                    event
+                      .pointOfContact
+                      .email
+                  }
+                </a>
+              </div>
+            )}
+
+            {event.pointOfContact
+              ?.phone && (
+              <div>
+                <a
+                  href={`tel:${event.pointOfContact.phone}`}
+                  className="text-[var(--aurak-brand)] hover:underline"
+                >
+                  {
+                    event
+                      .pointOfContact
+                      .phone
+                  }
+                </a>
+              </div>
+            )}
+          </div>
+        ),
+
+        wide: true,
+      },
+    ]
+  : []),
                 {
                   label:
                     "Notification Audience",

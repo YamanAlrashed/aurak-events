@@ -83,6 +83,12 @@ export interface TargetAudience {
    Campus Event
    ========================================================================== */
 
+export interface CampusEventPointOfContact {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface CampusEvent {
   id: string;
   name: string;
@@ -95,6 +101,8 @@ export interface CampusEvent {
   location: CampusLocation;
   hostingDepartmentId: string;
   hostingDepartmentName: string;
+
+  pointOfContact?: CampusEventPointOfContact;
 
   targetAudience: TargetAudience;
 
@@ -119,6 +127,7 @@ export interface CampusEventInput {
   endTime: TimeString;
   location: CampusLocation;
   hostingDepartmentId: string;
+  pointOfContact: CampusEventPointOfContact;
   targetAudience: TargetAudience;
   showAverageRatingToUsers: boolean;
 }

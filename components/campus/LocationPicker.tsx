@@ -17,7 +17,10 @@ export function LocationPicker({
   errors?: { buildingId?: string };
 }) {
   function update(patch: Partial<CampusLocation>) {
-    onChange({ ...value, ...patch });
+    onChange({
+      ...value,
+      ...patch,
+    });
   }
 
   return (
@@ -39,7 +42,8 @@ export function LocationPicker({
 
             update({
               buildingId,
-              buildingName: getBuilding(buildingId)?.name ?? "",
+              buildingName:
+                getBuilding(buildingId)?.name ?? "",
             });
           }}
         />
@@ -53,22 +57,12 @@ export function LocationPicker({
         <Input
           id="room"
           value={value.room ?? ""}
-          onChange={(event) => update({ room: event.target.value })}
+          onChange={(event) =>
+            update({
+              room: event.target.value,
+            })
+          }
           placeholder="K-204"
-        />
-      </Field>
-
-      <Field
-        label="Location Name"
-        hint="Optional friendly label shown to users."
-        htmlFor="locationName"
-        className="sm:col-span-2"
-      >
-        <Input
-          id="locationName"
-          value={value.locationName ?? ""}
-          onChange={(event) => update({ locationName: event.target.value })}
-          placeholder="Innovation Lab"
         />
       </Field>
     </div>

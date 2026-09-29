@@ -38,6 +38,12 @@ export const EMPTY_CAMPUS_EVENT: CampusEventInput = {
 
   hostingDepartmentId: "",
 
+  pointOfContact: {
+    name: "",
+    email: "",
+    phone: "",
+  },
+
   targetAudience: {
     userTypes: ["student"],
     collegeIds: [],
@@ -52,7 +58,15 @@ type FormErrors =
   FieldErrors<CampusEventInput> & {
     buildingId?: string;
     audience?: string;
+    contactEmail?: string;
+    contactPhone?: string;
   };
+
+const EMAIL_PATTERN =
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const PHONE_PATTERN =
+  /^[+()\d\s-]+$/;
 
 export function validateCampusEvent(
   value: CampusEventInput,
@@ -98,11 +112,40 @@ export function validateCampusEvent(
   }
 
   if (!value.hostingDepartmentId) {
-    errors.hostingDepartmentId = "Hosting department is required.";
+    errors.hostingDepartmentId =
+      "Hosting department is required.";
   }
 
   if (value.targetAudience.userTypes.length === 0) {
-    errors.audience = "Select at least one group to notify.";
+    errors.audience =
+      "Select at least one group to notify.";
+  }
+
+  const contactEmail =
+    value.pointOfContact.email?.trim() ?? "";
+
+  if (
+    contactEmail &&
+    !EMAIL_PATTERN.test(contactEmail)
+  ) {
+    errors.contactEmail =
+      "Enter a valid email address or leave it blank.";
+  }
+
+  const contactPhone =
+    value.pointOfContact.phone?.trim() ?? "";
+
+  if (contactPhone) {
+    const digits =
+      contactPhone.replace(/\D/g, "");
+
+    if (
+      !PHONE_PATTERN.test(contactPhone) ||
+      digits.length < 7
+    ) {
+      errors.contactPhone =
+        "Enter a valid phone number or leave it blank.";
+    }
   }
 
   return errors;
@@ -134,6 +177,18 @@ export function CampusEventForm({
     setValue((current) => ({
       ...current,
       ...patch,
+    }));
+  }
+
+  function updatePointOfContact(
+    patch: Partial<CampusEventInput["pointOfContact"]>
+  ) {
+    setValue((current) => ({
+      ...current,
+      pointOfContact: {
+        ...current.pointOfContact,
+        ...patch,
+      },
     }));
   }
 
@@ -264,7 +319,8 @@ export function CampusEventForm({
               invalid={Boolean(errors.hostingDepartmentId)}
               onChange={(event) =>
                 update({
-                  hostingDepartmentId: event.target.value,
+                  hostingDepartmentId:
+                    event.target.value,
                 })
               }
             />
@@ -302,6 +358,87 @@ export function CampusEventForm({
               buildingId: errors.buildingId,
             }}
           />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Point of Contact" />
+
+        <CardBody>
+          <p className="mb-4 text-sm text-[var(--aurak-text-muted)]">
+            Optional. Add any contact details that are useful for this event.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Name"
+              hint="Optional"
+              htmlFor="contactName"
+            >
+              <Input
+                id="contactName"
+                value={
+                  value.pointOfContact.name ?? ""
+                }
+                onChange={(event) =>
+                  updatePointOfContact({
+                    name: event.target.value,
+                  })
+                }
+                placeholder="Contact name"
+              />
+            </Field>
+
+            <Field
+              label="Email"
+              hint="Optional"
+              error={errors.contactEmail}
+              htmlFor="contactEmail"
+            >
+              <Input
+                id="contactEmail"
+                type="email"
+                inputMode="email"
+                value={
+                  value.pointOfContact.email ?? ""
+                }
+                invalid={Boolean(
+                  errors.contactEmail
+                )}
+                onChange={(event) =>
+                  updatePointOfContact({
+                    email: event.target.value,
+                  })
+                }
+                placeholder="name@aurak.ac.ae"
+              />
+            </Field>
+
+            <Field
+              label="Phone Number"
+              hint="Optional"
+              error={errors.contactPhone}
+              htmlFor="contactPhone"
+            >
+              <Input
+                id="contactPhone"
+                type="tel"
+                inputMode="tel"
+                value={
+                  value.pointOfContact.phone ?? ""
+                }
+                invalid={Boolean(
+                  errors.contactPhone
+                )}
+                onChange={(event) =>
+                  updatePointOfContact({
+                    phone: event.target.value,
+                  })
+                }
+                placeholder="+971 50 123 4567"
+              />
+            </Field>
+          </div>
         </CardBody>
       </Card>
 

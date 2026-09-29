@@ -135,7 +135,7 @@ export function describeTargetAudience(
     scope = audience.collegeIds
       .map(
         (id) =>
-          getCollege(id)?.shortName
+          getCollege(id)?.name
       )
       .filter(Boolean)
       .join(", ");
@@ -165,7 +165,7 @@ export function describeTargetAudienceShort(
     )
     .join(", ");
 
-  const colleges =
+  const schools =
     audience.collegeIds.length > 0
       ? audience.collegeIds
           .map(
@@ -174,9 +174,9 @@ export function describeTargetAudienceShort(
           )
           .filter(Boolean)
           .join(", ")
-      : "All colleges";
+      : "All schools";
 
-  return `${colleges} · ${
+  return `${schools} · ${
     types || "No types"
   }`;
 }
